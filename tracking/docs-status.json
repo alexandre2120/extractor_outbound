@@ -1,0 +1,30 @@
+{
+  "updatedAt": "2026-06-30",
+  "docs": [
+    { "path": "docs/product/vision.md", "exists": true },
+    { "path": "docs/product/scope.md", "exists": true },
+    { "path": "docs/product/roadmap.md", "exists": true },
+    { "path": "docs/architecture/system-overview.md", "exists": true },
+    { "path": "docs/architecture/services.md", "exists": true },
+    { "path": "docs/architecture/data-flow.md", "exists": true },
+    { "path": "docs/architecture/env-contract.md", "exists": true },
+    { "path": "docs/domain/entities.md", "exists": true },
+    { "path": "docs/domain/workflows.md", "exists": true },
+    { "path": "docs/domain/state-machines.md", "exists": true },
+    { "path": "docs/integrations/cnpj.md", "exists": true },
+    { "path": "docs/integrations/portugal-providers.md", "exists": true },
+    { "path": "docs/integrations/brevo.md", "exists": true },
+    { "path": "docs/integrations/kie.md", "exists": true },
+    { "path": "docs/integrations/browser-research.md", "exists": true },
+    { "path": "docs/design/design-system.md", "exists": true },
+    { "path": "docs/design/components.md", "exists": true },
+    { "path": "docs/design/ux-rules.md", "exists": true },
+    { "path": "docs/operations/runbook-local.md", "exists": true },
+    { "path": "docs/operations/docker.md", "exists": true },
+    { "path": "docs/operations/jobs.md", "exists": true },
+    { "path": "docs/operations/troubleshooting.md", "exists": true },
+    { "path": "docs/agents/orchestrator-rules.md", "exists": true },
+    { "path": "docs/agents/agent-contracts.md", "exists": true },
+    { "path": "docs/agents/task-checklist.md", "exists": true }
+  ]
+}

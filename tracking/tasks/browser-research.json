@@ -1,0 +1,8 @@
+{
+  "agent": "browser-research",
+  "status": "pending",
+  "did": "Doc, fila 'research' e modelos (ResearchJob/Evidence/Snapshot) prontos. Lógica de navegação na Camada 2 (Playwright).",
+  "dependsOn": ["database"],
+  "blocks": ["ai-gateway"],
+  "acceptance": ["job roda local e grava evidências com URL+timestamp"]
+}

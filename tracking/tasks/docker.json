@@ -1,0 +1,8 @@
+{
+  "agent": "docker-infra",
+  "status": "done",
+  "did": "compose.yaml com db, redis, app, worker, minio(perfil); healthchecks; env_file; .env.example.",
+  "dependsOn": ["foundation"],
+  "blocks": [],
+  "acceptance": ["docker compose up -d db redis healthy"]
+}

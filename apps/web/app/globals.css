@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================================================
+   Design system — base preto/branco/cinza, fundo claro acinzentado.
+   Sem cores saturadas, sem gradientes. Ver docs/design/design-system.md
+   ========================================================================= */
+:root {
+  --background: #f4f4f5; /* cinza muito claro */
+  --surface: #fbfbfc; /* branco acinzentado */
+  --surface-muted: #ededf0; /* cinza claro */
+  --border: #e0e0e3; /* cinza neutro */
+  --ring: #9b9ba1;
+  --text-primary: #1c1c1f; /* preto suave */
+  --text-secondary: #6b6b72; /* cinza médio */
+  --accent: #1c1c1f; /* preto/cinza escuro, sem saturação */
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+* {
+  border-color: var(--border);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}

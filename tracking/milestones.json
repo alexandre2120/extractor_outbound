@@ -1,0 +1,7 @@
+{
+  "updatedAt": "2026-06-30",
+  "milestones": [
+    { "id": "layer-1", "name": "Camada 1 — estrutura inicial", "status": "em andamento", "progress": 0.9 },
+    { "id": "layer-2", "name": "Camada 2 — funcional ponta a ponta", "status": "pendente", "progress": 0.0 }
+  ]
+}

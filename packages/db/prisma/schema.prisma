@@ -1,0 +1,510 @@
+// =============================================================================
+// Schema do domínio — MicroSaaS de outbound (plan-first)
+// Objeto pai: Plan. Regra de verdade: registry > website_evidence > ai_enrichment
+// Ver docs/domain/entities.md e docs/domain/workflows.md
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------------
+
+enum Market {
+  BRAZIL
+  PORTUGAL
+  EUROPE
+}
+
+enum TruthLayer {
+  REGISTRY // verdade cadastral estruturada
+  WEBSITE // fatos públicos observados no site
+  AI // inferência derivada — nunca verdade primária
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+  CANCELLED
+}
+
+enum EnrichmentStatus {
+  DRAFT
+  GENERATED
+  REVIEWED
+  APPROVED
+  REJECTED
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum MessageStatus {
+  DRAFT
+  REVIEWED
+  APPROVED
+  SCHEDULED
+  SENT
+}
+
+enum DeliveryEventType {
+  QUEUED
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  REPLIED
+  FAILED
+}
+
+enum AgentTaskStatus {
+  PENDING
+  BLOCKED
+  IN_PROGRESS
+  DONE
+  FAILED
+}
+
+enum ProviderKind {
+  CNPJ_REGISTRY
+  PT_REGISTRY
+  EU_REGISTRY
+  AI_GATEWAY
+  EMAIL
+  BROWSER
+}
+
+// -----------------------------------------------------------------------------
+// Workspace & oferta
+// -----------------------------------------------------------------------------
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  businessProfiles BusinessProfile[]
+  plans            Plan[]
+  leadLists        LeadList[]
+  companies        Company[]
+  campaigns        OutboundCampaign[]
+  agentTasks       AgentTask[]
+  checkpoints      ProjectCheckpoint[]
+}
+
+model BusinessProfile {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  offer       String // o que a empresa vende
+  valueProp   String // proposta de valor
+  positioning String?
+  tone        String? // tom de comunicação
+  objective   String? // objetivo comercial
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plans     Plan[]
+
+  @@index([workspaceId])
+}
+
+// -----------------------------------------------------------------------------
+// Plan — objeto pai do domínio
+// -----------------------------------------------------------------------------
+
+model Plan {
+  id                String   @id @default(cuid())
+  workspaceId       String
+  businessProfileId String?
+  name              String
+  objective         String
+  valueProp         String?
+  tone              String?
+  isAiRefined       Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  businessProfile BusinessProfile? @relation(fields: [businessProfileId], references: [id], onDelete: SetNull)
+
+  markets     PlanMarket[]
+  countries   PlanCountry[]
+  segments    PlanSegment[]
+  personas    PlanPersona[]
+  constraints PlanConstraint[]
+  leadLists   LeadList[]
+  campaigns   OutboundCampaign[]
+
+  @@index([workspaceId])
+}
+
+model PlanMarket {
+  id     String @id @default(cuid())
+  planId String
+  market Market
+  plan   Plan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, market])
+}
+
+model PlanCountry {
+  id          String @id @default(cuid())
+  planId      String
+  countryCode String // ISO-3166-1 alpha-2 (BR, PT, ...)
+  plan        Plan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, countryCode])
+}
+
+model PlanSegment {
+  id          String  @id @default(cuid())
+  planId      String
+  label       String // ex: "agências de marketing"
+  cnaeCodes   String? // CSV de CNAEs alvo (Brasil)
+  keywords    String? // CSV de palavras-chave
+  description String?
+  plan        Plan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+}
+
+model PlanPersona {
+  id          String  @id @default(cuid())
+  planId      String
+  role        String // ex: "Head de Growth"
+  seniority   String?
+  painPoints  String?
+  description String?
+  plan        Plan    @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+}
+
+model PlanConstraint {
+  id     String @id @default(cuid())
+  planId String
+  type   String // ex: "exclude_segment", "min_employees", "region"
+  value  String
+  plan   Plan   @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+}
+
+// -----------------------------------------------------------------------------
+// Lead discovery & microCRM
+// -----------------------------------------------------------------------------
+
+model LeadList {
+  id          String   @id @default(cuid())
+  workspaceId String
+  planId      String?
+  name        String
+  description String?
+  filters     Json? // snapshot dos filtros usados na descoberta
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plan      Plan?     @relation(fields: [planId], references: [id], onDelete: SetNull)
+  members   LeadListMember[]
+
+  @@index([workspaceId])
+  @@index([planId])
+}
+
+model LeadListMember {
+  id         String   @id @default(cuid())
+  leadListId String
+  companyId  String
+  addedAt    DateTime @default(now())
+
+  leadList LeadList @relation(fields: [leadListId], references: [id], onDelete: Cascade)
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([leadListId, companyId])
+}
+
+model Company {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  legalName   String?
+  taxId       String? // CNPJ / NIF / etc.
+  countryCode String?
+  domain      String?
+  email       String?
+  phone       String?
+  city        String?
+  state       String?
+  source      ProviderKind?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace    Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  registryData CompanyRegistryData?
+  website      CompanyWebsite?
+  researchJobs CompanyResearchJob[]
+  enrichments  AIEnrichment[]
+  listMembers  LeadListMember[]
+  messages     GeneratedMessage[]
+
+  @@unique([workspaceId, taxId])
+  @@index([workspaceId])
+  @@index([domain])
+}
+
+model CompanyRegistryData {
+  id           String   @id @default(cuid())
+  companyId    String   @unique
+  truthLayer   TruthLayer @default(REGISTRY)
+  provider     ProviderKind
+  raw          Json // payload bruto do provider
+  cnae         String?
+  foundedAt    DateTime?
+  employeeBand String?
+  capital      String?
+  status       String? // situação cadastral
+  fetchedAt    DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+model CompanyWebsite {
+  id            String   @id @default(cuid())
+  companyId     String   @unique
+  url           String
+  validated     Boolean  @default(false)
+  lastResearch  DateTime?
+  factualSummary String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+// -----------------------------------------------------------------------------
+// Browser research
+// -----------------------------------------------------------------------------
+
+model CompanyResearchJob {
+  id           String    @id @default(cuid())
+  companyId    String
+  status       JobStatus @default(PENDING)
+  targetPages  Json? // lista de páginas-alvo
+  qualityScore Float?
+  error        String?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  evidence  ResearchEvidence[]
+  snapshots ResearchSnapshot[]
+
+  @@index([companyId])
+  @@index([status])
+}
+
+model ResearchEvidence {
+  id            String     @id @default(cuid())
+  researchJobId String
+  truthLayer    TruthLayer @default(WEBSITE)
+  url           String
+  pageType      String? // home, about, pricing, ...
+  extracted     String // conteúdo factual extraído
+  capturedAt    DateTime   @default(now())
+
+  job CompanyResearchJob @relation(fields: [researchJobId], references: [id], onDelete: Cascade)
+
+  @@index([researchJobId])
+}
+
+model ResearchSnapshot {
+  id            String   @id @default(cuid())
+  researchJobId String
+  url           String
+  storageKey    String? // chave no MinIO/blob
+  content       String? // snapshot textual pesquisável
+  capturedAt    DateTime @default(now())
+
+  job CompanyResearchJob @relation(fields: [researchJobId], references: [id], onDelete: Cascade)
+
+  @@index([researchJobId])
+}
+
+// -----------------------------------------------------------------------------
+// AI enrichment (manual / lotes pequenos, com revisão humana)
+// -----------------------------------------------------------------------------
+
+model AIEnrichment {
+  id            String           @id @default(cuid())
+  companyId     String
+  truthLayer    TruthLayer       @default(AI)
+  status        EnrichmentStatus @default(DRAFT)
+  version       Int              @default(1)
+  model         String? // modelo usado via KIE
+  fitScore      Float? // score de aderência ao plano
+  hypotheses    Json? // hipóteses comerciais
+  approachAngle String?
+  rawOutput     Json?
+  inputHash     String? // hash de evidências+registry para cache
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  createdAt     DateTime         @default(now())
+
+  company  Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  messages GeneratedMessage[]
+
+  @@index([companyId])
+  @@index([inputHash])
+}
+
+// -----------------------------------------------------------------------------
+// Outbound
+// -----------------------------------------------------------------------------
+
+model OutboundCampaign {
+  id          String         @id @default(cuid())
+  workspaceId String
+  planId      String?
+  name        String
+  status      CampaignStatus @default(DRAFT)
+  channel     String         @default("email")
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plan      Plan?              @relation(fields: [planId], references: [id], onDelete: SetNull)
+  steps     SequenceStep[]
+  messages  GeneratedMessage[]
+
+  @@index([workspaceId])
+}
+
+model SequenceStep {
+  id         String  @id @default(cuid())
+  campaignId String
+  order      Int
+  channel    String  @default("email")
+  delayDays  Int     @default(0)
+  template   String? // template base do passo
+  campaign   OutboundCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  messages GeneratedMessage[]
+
+  @@unique([campaignId, order])
+}
+
+model GeneratedMessage {
+  id           String        @id @default(cuid())
+  campaignId   String?
+  stepId       String?
+  companyId    String
+  enrichmentId String?
+  channel      String        @default("email")
+  subject      String?
+  body         String
+  status       MessageStatus @default(DRAFT)
+  version      Int           @default(1)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  campaign   OutboundCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  step       SequenceStep?     @relation(fields: [stepId], references: [id], onDelete: SetNull)
+  company    Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  enrichment AIEnrichment?     @relation(fields: [enrichmentId], references: [id], onDelete: SetNull)
+  events     DeliveryEvent[]
+
+  @@index([companyId])
+  @@index([campaignId])
+}
+
+model DeliveryEvent {
+  id          String            @id @default(cuid())
+  messageId   String
+  type        DeliveryEventType
+  provider    String            @default("brevo")
+  providerId  String? // id do envio no provider
+  metadata    Json?
+  occurredAt  DateTime          @default(now())
+
+  message GeneratedMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+  @@index([type])
+}
+
+// -----------------------------------------------------------------------------
+// Providers, orquestração & documentação
+// -----------------------------------------------------------------------------
+
+model ProviderSource {
+  id        String       @id @default(cuid())
+  kind      ProviderKind
+  name      String
+  baseUrl   String?
+  enabled   Boolean      @default(true)
+  config    Json?
+  createdAt DateTime     @default(now())
+
+  @@unique([kind, name])
+}
+
+model AgentTask {
+  id           String          @id @default(cuid())
+  workspaceId  String?
+  agent        String // foundation, docker, database, ...
+  title        String
+  status       AgentTaskStatus @default(PENDING)
+  dependsOn    String? // CSV de ids/agents
+  blocks       String?
+  notes        String?
+  docRefs      String? // docs lidos/produzidos
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  @@index([agent])
+  @@index([status])
+}
+
+model ProjectCheckpoint {
+  id          String   @id @default(cuid())
+  workspaceId String?
+  label       String
+  module      String?
+  payload     Json?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  @@index([module])
+}
+
+model DocumentationArtifact {
+  id        String   @id @default(cuid())
+  path      String   @unique // ex: docs/integrations/brevo.md
+  module    String?
+  exists    Boolean  @default(true)
+  required  Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+}

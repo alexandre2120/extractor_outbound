@@ -1,0 +1,37 @@
+# deps
+node_modules
+.pnpm-store
+
+# build
+.next
+out
+dist
+.turbo
+
+# env
+.env
+.env.local
+.env.*.local
+.env.ai
+.env.db
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# os / editor
+.DS_Store
+.idea
+.vscode/*
+!.vscode/extensions.json
+
+# runtime artifacts
+/output/*
+!/output/.gitkeep
+coverage
+prisma/*.db
+
+# docker volumes (local)
+.docker-data
+apps/**/.env.local

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Outbound — acompanhamento do projeto</title>
+    <style>
+      :root {
+        --background: #f4f4f5;
+        --surface: #fbfbfc;
+        --surface-muted: #ededf0;
+        --border: #e0e0e3;
+        --text-primary: #1c1c1f;
+        --text-secondary: #6b6b72;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--background);
+        color: var(--text-primary);
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        -webkit-font-smoothing: antialiased;
+        line-height: 1.5;
+      }
+      .wrap { max-width: 980px; margin: 0 auto; padding: 32px 24px 64px; }
+      header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 28px; }
+      h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+      h2 { font-size: 13px; font-weight: 500; color: var(--text-secondary); margin: 28px 0 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+      .muted { color: var(--text-secondary); font-size: 13px; }
+      .grid { display: grid; gap: 12px; }
+      .grid.cols { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+      .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+      .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; }
+      .list { display: grid; gap: 6px; }
+      .badge { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 6px; border: 1px solid var(--border); color: var(--text-secondary); white-space: nowrap; }
+      .badge.done { background: var(--text-primary); color: var(--background); border-color: transparent; }
+      .badge.progress { background: var(--surface-muted); color: var(--text-primary); }
+      .bar { height: 6px; background: var(--surface-muted); border-radius: 999px; overflow: hidden; margin-top: 8px; }
+      .bar > span { display: block; height: 100%; background: var(--text-primary); }
+      .name { font-size: 13px; }
+      .blocker { border-left: 3px solid var(--text-primary); }
+      code { background: var(--surface-muted); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+      .note { font-size: 12px; color: var(--text-secondary); margin-top: 6px; }
+      .err { color: #b00020; font-size: 13px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>outbound<span class="muted">.local</span> — acompanhamento</h1>
+        <span class="muted" id="updated"></span>
+      </header>
+
+      <div id="status" class="muted">Carregando…</div>
+
+      <h2>Milestones</h2>
+      <div id="milestones" class="list"></div>
+
+      <h2>Serviços locais</h2>
+      <div id="services" class="grid cols"></div>
+
+      <h2>Módulos</h2>
+      <div id="modules" class="list"></div>
+
+      <h2>Microagentes</h2>
+      <div id="agents" class="list"></div>
+
+      <h2>Blockers</h2>
+      <div id="blockers" class="list"></div>
+
+      <h2>Documentação</h2>
+      <div id="docs" class="card"></div>
+
+      <h2>Próximos passos</h2>
+      <div id="next" class="list"></div>
+
+      <p class="note">
+        Esta página lê os arquivos JSON de <code>/tracking</code>. Para evitar
+        bloqueio de <code>fetch</code> em <code>file://</code>, sirva a pasta:
+        <code>cd tracking && python3 -m http.server 8080</code> e abra
+        <code>http://localhost:8080</code>.
+      </p>
+    </div>
+
+    <script>
+      const statusBadge = (s) => {
+        const v = String(s).toLowerCase();
+        if (["done", "feito"].includes(v)) return "done";
+        if (["in_progress", "em andamento"].some((x) => v.includes(x))) return "progress";
+        return "";
+      };
+
+      async function getJSON(path) {
+        const res = await fetch(path, { cache: "no-store" });
+        if (!res.ok) throw new Error(path);
+        return res.json();
+      }
+
+      function row(name, status) {
+        return `<div class="row"><span class="name">${name}</span><span class="badge ${statusBadge(status)}">${status}</span></div>`;
+      }
+
+      async function load() {
+        try {
+          const [progress, agents, docs, blockers, milestones] = await Promise.all([
+            getJSON("progress.json"),
+            getJSON("agents.json"),
+            getJSON("docs-status.json"),
+            getJSON("blockers.json"),
+            getJSON("milestones.json"),
+          ]);
+
+          document.getElementById("updated").textContent = "atualizado " + progress.updatedAt;
+          document.getElementById("status").innerHTML =
+            `<strong>${progress.layer}</strong> · status geral: <span class="badge ${statusBadge(progress.overall)}">${progress.overall}</span>`;
+
+          document.getElementById("milestones").innerHTML = milestones.milestones
+            .map((m) => `<div class="card"><div class="row" style="border:0;padding:0;background:transparent"><span class="name">${m.name}</span><span class="badge ${statusBadge(m.status)}">${m.status}</span></div><div class="bar"><span style="width:${Math.round(m.progress * 100)}%"></span></div></div>`)
+            .join("");
+
+          document.getElementById("services").innerHTML = progress.services
+            .map((s) => `<div class="card"><div class="name">${s.name}</div><div class="muted">${s.status}</div></div>`)
+            .join("");
+
+          document.getElementById("modules").innerHTML = progress.modules
+            .map((m) => row(m.name, m.status)).join("");
+
+          document.getElementById("agents").innerHTML = agents.agents
+            .map((a) => `<div class="row"><span class="name">${a.agent}<div class="note">${a.notes || ""}</div></span><span class="badge ${statusBadge(a.status)}">${a.status}</span></div>`)
+            .join("");
+
+          document.getElementById("blockers").innerHTML = blockers.blockers.length
+            ? blockers.blockers.map((b) => `<div class="row blocker"><span class="name">${b.title}<div class="note">${b.detail}</div></span><span class="badge">${b.severity}</span></div>`).join("")
+            : `<div class="muted">Sem blockers.</div>`;
+
+          const present = docs.docs.filter((d) => d.exists).length;
+          document.getElementById("docs").innerHTML =
+            `<div class="name">${present}/${docs.docs.length} documentos presentes</div>` +
+            `<div class="muted" style="margin-top:8px">${docs.docs.map((d) => `${d.exists ? "✓" : "✗"} <code>${d.path}</code>`).join("<br/>")}</div>`;
+
+          document.getElementById("next").innerHTML = (progress.nextSteps || [])
+            .map((n) => `<div class="row"><span class="name">${n}</span></div>`).join("");
+        } catch (e) {
+          document.getElementById("status").innerHTML =
+            `<span class="err">Não foi possível ler ${e.message}. Sirva a pasta /tracking (ver nota abaixo).</span>`;
+        }
+      }
+      load();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "updatedAt": "2026-06-30",
+  "blockers": [],
+  "validatedIntegrations": [
+    { "name": "Brevo", "status": "OK (HTTP 200, conta free)" },
+    { "name": "KIE", "status": "OK (gemini-2.5-flash, formato OpenAI)" },
+    { "name": "CNPJá", "status": "OK (HTTP 200)" },
+    { "name": "CNPJ.ws", "status": "fora de escopo por enquanto (pago)" }
+  ]
+}

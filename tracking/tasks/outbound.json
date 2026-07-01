@@ -1,0 +1,8 @@
+{
+  "agent": "outbound-messaging",
+  "status": "pending",
+  "did": "Modelos (Campaign/Step/Message/DeliveryEvent) e prompts prontos. Integração Brevo na Camada 2.",
+  "dependsOn": ["ai-gateway"],
+  "blocks": [],
+  "acceptance": ["envio via Brevo registra DeliveryEvent", "revisão humana antes do disparo"]
+}

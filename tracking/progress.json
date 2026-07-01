@@ -1,0 +1,27 @@
+{
+  "project": "Outbound MicroSaaS (plan-first)",
+  "updatedAt": "2026-06-30",
+  "layer": "Camada 2 — funcional ponta a ponta",
+  "overall": "em andamento",
+  "services": [
+    { "name": "app (Next.js)", "status": "build OK (5 rotas)" },
+    { "name": "db (Postgres)", "status": "up healthy + schema + seed" },
+    { "name": "redis", "status": "up healthy" },
+    { "name": "worker", "status": "conecta + filas OK" },
+    { "name": "minio (opcional)", "status": "perfil storage" }
+  ],
+  "modules": [
+    { "name": "Onboarding / Plan Builder", "status": "funcional (form + action)" },
+    { "name": "Lead Discovery (ingestão CNPJá)", "status": "funcional, testado via UI" },
+    { "name": "Company Registry / microCRM", "status": "funcional" },
+    { "name": "Browser Research", "status": "Playwright async no worker (fila research)" },
+    { "name": "AI Enrichment (KIE)", "status": "async no worker (fila enrichment)" },
+    { "name": "Outbound (geração + Brevo)", "status": "wired; envio validado em conta própria" },
+    { "name": "Documentation & Tracking", "status": "feito" }
+  ],
+  "nextSteps": [
+    "Editar Plan (segmentos/personas/restrições) na UI",
+    "Sequências/campanhas multi-step + webhook Brevo (open/click/reply)",
+    "Mover ingestão/outbound também para a fila (lotes aprovados)"
+  ]
+}

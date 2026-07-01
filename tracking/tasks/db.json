@@ -1,0 +1,8 @@
+{
+  "agent": "database",
+  "status": "done",
+  "did": "Schema Prisma completo do domínio + seed de demo. Falta rodar migrate em ambiente local.",
+  "dependsOn": ["foundation", "domain-modeling"],
+  "blocks": ["data-providers", "browser-research", "ai-gateway"],
+  "acceptance": ["prisma migrate dev", "prisma db seed"]
+}

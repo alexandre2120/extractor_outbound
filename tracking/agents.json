@@ -1,0 +1,16 @@
+{
+  "updatedAt": "2026-06-30",
+  "agents": [
+    { "agent": "foundation", "status": "done", "notes": "monorepo pnpm+turbo, tsconfig, lint base" },
+    { "agent": "docker-infra", "status": "done", "notes": "compose.yaml, healthchecks, env_file, .env.example" },
+    { "agent": "domain-modeling", "status": "done", "notes": "entidades, workflows, state-machines" },
+    { "agent": "database", "status": "done", "notes": "schema Prisma, seed; falta migrate local" },
+    { "agent": "frontend-ui", "status": "done", "notes": "design system + Onboarding/Plans/Companies/detalhe com actions" },
+    { "agent": "progress-tracker", "status": "done", "notes": "tracking/*.json + index.html" },
+    { "agent": "docs-guardian", "status": "done", "notes": "contratos + checkDocsPrerequisite" },
+    { "agent": "data-providers", "status": "done", "notes": "CnpjaProvider; ingestão testada via UI" },
+    { "agent": "browser-research", "status": "done", "notes": "Playwright (Chromium) + fallback fetch; testado in-app via UI" },
+    { "agent": "ai-gateway", "status": "done", "notes": "KieClient + enrichment/mensagem validados por schema" },
+    { "agent": "outbound-messaging", "status": "in_progress", "notes": "BrevoClient + envio/DeliveryEvent; sequências pendentes" }
+  ]
+}

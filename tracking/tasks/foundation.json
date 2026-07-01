@@ -1,0 +1,8 @@
+{
+  "agent": "foundation",
+  "status": "done",
+  "did": "Monorepo pnpm + Turborepo, tsconfig base, packages compartilhados, Next.js base.",
+  "dependsOn": [],
+  "blocks": [],
+  "acceptance": ["pnpm install", "typecheck"]
+}
