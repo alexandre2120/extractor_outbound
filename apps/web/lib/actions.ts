@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma, ProviderKind, JobStatus, EnrichmentStatus, MessageStatus, DeliveryEventType, CampaignStatus } from "@repo/db";
 import { clientsFromEnv, generateColdMessage } from "@repo/integrations";
 import { getWorkspace, getDefaultLeadList } from "./workspace";
-import { researchQueue, enrichmentQueue } from "./queue";
+import { researchQueue, enrichmentQueue, discoveryQueue } from "./queue";
 
 type ActionResult = { ok: boolean; message: string };
 
@@ -19,6 +19,10 @@ export async function createBusinessProfileAndPlan(
   const objective = String(formData.get("objective") ?? "").trim();
   const tone = String(formData.get("tone") ?? "").trim() || null;
   const planName = String(formData.get("planName") ?? "").trim() || "Plano inicial";
+  const country = ["BR", "PT"].includes(String(formData.get("country") ?? "").toUpperCase())
+    ? String(formData.get("country")).toUpperCase()
+    : "PT";
+  const market = country === "BR" ? "BRAZIL" : "PORTUGAL";
 
   if (!offer || !valueProp || !objective) {
     return { ok: false, message: "Preencha oferta, proposta de valor e objetivo." };
@@ -36,8 +40,8 @@ export async function createBusinessProfileAndPlan(
       objective,
       valueProp,
       tone,
-      markets: { create: [{ market: "BRAZIL" }] },
-      countries: { create: [{ countryCode: "BR" }] },
+      markets: { create: [{ market }] },
+      countries: { create: [{ countryCode: country }] },
     },
   });
 
@@ -421,4 +425,54 @@ export async function generateSequenceForCompanyAction(campaignId: string, formD
   } catch (e) {
     return { ok: false, message: (e as Error).message };
   }
+}
+
+// --- Discovery (motor de descoberta a partir do plano) -----------------------
+
+const MARKET_BY_COUNTRY: Record<string, "BRAZIL" | "PORTUGAL" | "EUROPE"> = {
+  BR: "BRAZIL",
+  PT: "PORTUGAL",
+};
+
+/** Define país/mercado do plano (corrige o país; habilita Portugal). */
+export async function setPlanLocationAction(planId: string, formData: FormData): Promise<ActionResult> {
+  const country = String(formData.get("country") ?? "").trim().toUpperCase();
+  if (!["BR", "PT"].includes(country)) return { ok: false, message: "País inválido." };
+  const market = MARKET_BY_COUNTRY[country]!;
+
+  await prisma.$transaction([
+    prisma.planCountry.deleteMany({ where: { planId } }),
+    prisma.planMarket.deleteMany({ where: { planId } }),
+    prisma.planCountry.create({ data: { planId, countryCode: country } }),
+    prisma.planMarket.create({ data: { planId, market } }),
+  ]);
+  revalidatePath(`/plans/${planId}`);
+  return { ok: true, message: `País do plano: ${country}.` };
+}
+
+/** Enfileira uma rodada de descoberta para o plano. */
+export async function runDiscoveryAction(planId: string, formData: FormData): Promise<ActionResult> {
+  const requested = Math.min(30, Math.max(5, Number(formData.get("requested") ?? 12) || 12));
+  const plan = await prisma.plan.findUnique({
+    where: { id: planId },
+    include: { segments: true, countries: true },
+  });
+  if (!plan) return { ok: false, message: "Plano não encontrado." };
+  if (plan.segments.length === 0) return { ok: false, message: "Adicione ao menos um segmento ao plano." };
+  if (plan.countries.length === 0) return { ok: false, message: "Defina o país do plano antes." };
+
+  const run = await prisma.discoveryRun.create({
+    data: { planId, workspaceId: plan.workspaceId, requested },
+  });
+  try {
+    await discoveryQueue.add("discovery", { runId: run.id, planId });
+  } catch (e) {
+    await prisma.discoveryRun.update({
+      where: { id: run.id },
+      data: { status: "FAILED", error: `Falha ao enfileirar: ${(e as Error).message}` },
+    });
+    return { ok: false, message: "Não foi possível enfileirar (worker/Redis no ar?)." };
+  }
+  revalidatePath(`/plans/${planId}`);
+  return { ok: true, message: `Descoberta enfileirada (${requested} empresas) — o worker vai processar.` };
 }

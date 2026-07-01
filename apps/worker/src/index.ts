@@ -1,6 +1,6 @@
 import { Worker } from "bullmq";
 import { connection, QUEUE_NAMES, queues } from "./queues.js";
-import { processResearch, processEnrichment } from "./processors.js";
+import { processResearch, processEnrichment, processDiscovery } from "./processors.js";
 
 /**
  * Worker de jobs assíncronos: ingestão, browser research, AI enrichment e
@@ -21,6 +21,15 @@ const workers = [
       return { ok: true };
     },
     { connection, concurrency },
+  ),
+
+  new Worker(
+    QUEUE_NAMES.discovery,
+    async (job) => {
+      await processDiscovery(job.data);
+      return { ok: true };
+    },
+    { connection, concurrency: 1 },
   ),
 
   new Worker(

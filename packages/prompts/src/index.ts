@@ -48,6 +48,43 @@ export const MESSAGE_SYSTEM = `Você escreve cold emails B2B curtos, específico
 - Sem promessas vagas, sem "AI slop", sem floreio.
 - Responda SOMENTE em JSON: { subject, body, channel }.`;
 
+export interface RankingPromptInput {
+  planObjective: string;
+  icpSegment: string;
+  icpCountry: string;
+  companyName: string;
+  domain: string;
+  industry: string;
+  employees: string;
+  city: string;
+  emailType: string; // pessoal | generico | nenhum
+}
+
+export const RANKING_SYSTEM = `Você ranqueia empresas para outbound B2B por aderência ao ICP.
+Regras:
+- Baseie-se APENAS nos fatos fornecidos; não invente.
+- Priorize (1) fit com o ICP (segmento, região, porte) e (2) qualidade do contato
+  (e-mail pessoal > genérico; sem e-mail = penaliza).
+- Responda SOMENTE em JSON: { "score": 0-100, "tier": "A|B|C",
+  "fitReasons": [..], "contactQuality": "..", "redFlags": [..] }.`;
+
+export function buildRankingPrompt(i: RankingPromptInput): string {
+  return `ICP do plano:
+- Objetivo: ${i.planObjective}
+- Segmento-alvo: ${i.icpSegment}
+- País/região: ${i.icpCountry}
+
+Empresa a avaliar:
+- Nome: ${i.companyName}
+- Domínio: ${i.domain}
+- Indústria: ${i.industry || "?"}
+- Funcionários (estimado): ${i.employees || "?"}
+- Cidade: ${i.city || "?"}
+- E-mail encontrado: ${i.emailType}
+
+Dê score (0-100) e tier (A=ótimo fit, B=médio, C=fraco).`;
+}
+
 export function buildMessagePrompt(i: MessagePromptInput): string {
   return `Objetivo: ${i.planObjective}
 Proposta de valor: ${i.valueProp}

@@ -4,14 +4,19 @@ import {
   ENRICHMENT_SYSTEM,
   buildMessagePrompt,
   MESSAGE_SYSTEM,
+  buildRankingPrompt,
+  RANKING_SYSTEM,
   type EnrichmentPromptInput,
   type MessagePromptInput,
+  type RankingPromptInput,
 } from "@repo/prompts";
 import {
   aiEnrichmentOutput,
   generatedMessageOutput,
+  rankingOutput,
   type AIEnrichmentOutput,
   type GeneratedMessageOutput,
+  type RankingOutput,
 } from "@repo/schemas";
 import { CnpjaProvider } from "./cnpj";
 import { KieClient } from "./kie";
@@ -22,6 +27,15 @@ export * from "./kie";
 export * from "./brevo";
 export * from "./research";
 export * from "./research-playwright";
+export { duckDuckGoProvider, type SearchHit, type SearchProvider } from "./search";
+export { extractEmail, type EmailResult } from "./email-extract";
+export { ApolloClient, type ApolloOrg } from "./apollo";
+export {
+  runDiscovery,
+  buildDiscoveryQuery,
+  type DiscoveredCompany,
+  type DiscoveryOptions,
+} from "./discovery";
 
 import { runResearch, type ResearchOutput } from "./research";
 import { runResearchPlaywright } from "./research-playwright";
@@ -82,6 +96,22 @@ export async function enrichCompany(
   );
   const result = aiEnrichmentOutput.parse(data);
   return { result, creditsConsumed, model: "kie" };
+}
+
+/** Ranqueia uma empresa descoberta por fit ao ICP (saída validada). */
+export async function rankCompany(
+  kie: KieClient,
+  input: RankingPromptInput,
+): Promise<{ result: RankingOutput; creditsConsumed?: number }> {
+  const { data, creditsConsumed } = await kie.chatJson(
+    [
+      { role: "system", content: RANKING_SYSTEM },
+      { role: "user", content: buildRankingPrompt(input) },
+    ],
+    { maxTokens: 500 },
+  );
+  const result = rankingOutput.parse(data);
+  return { result, creditsConsumed };
 }
 
 /** Gera cold email validado por schema. */

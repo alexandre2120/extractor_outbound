@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, Field, Input, Badge } from "@
 import { prisma } from "@repo/db";
 import { ActionForm } from "@/components/action-form";
 import { ActionButton } from "@/components/action-button";
+import { AutoRefresh } from "@/components/auto-refresh";
 import {
   updatePlanAction,
   addSegmentAction,
@@ -12,9 +13,13 @@ import {
   removeSegmentAction,
   removePersonaAction,
   removeConstraintAction,
+  setPlanLocationAction,
+  runDiscoveryAction,
 } from "@/lib/actions";
 
 export const dynamic = "force-dynamic";
+
+const TIER_LABEL: Record<string, string> = { A: "solid", B: "default", C: "outline" };
 
 export default async function PlanDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -30,6 +35,19 @@ export default async function PlanDetail({ params }: { params: Promise<{ id: str
   });
   if (!plan) notFound();
 
+  const lastRun = await prisma.discoveryRun.findFirst({
+    where: { planId: id },
+    orderBy: { createdAt: "desc" },
+    include: {
+      results: {
+        orderBy: [{ rankScore: "desc" }, { emailFound: "desc" }],
+        include: { company: true },
+      },
+    },
+  });
+  const discoveryActive = lastRun?.status === "PENDING" || lastRun?.status === "RUNNING";
+  const currentCountry = plan.countries[0]?.countryCode ?? "";
+
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-1">
@@ -40,6 +58,69 @@ export default async function PlanDetail({ params }: { params: Promise<{ id: str
           {plan.countries.map((c) => <Badge key={c.id} variant="outline">{c.countryCode}</Badge>)}
         </div>
       </div>
+
+      <AutoRefresh active={!!discoveryActive} />
+
+      {/* Descoberta de empresas */}
+      <Card>
+        <CardHeader><CardTitle>Descobrir empresas (com e-mail) + ranking IA</CardTitle></CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <ActionForm action={setPlanLocationAction.bind(null, plan.id)} submitLabel="Salvar país">
+            <Field label="País do plano (define a busca)">
+              <select
+                name="country"
+                defaultValue={currentCountry || "PT"}
+                className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="PT">Portugal (busca web + scraping de e-mail)</option>
+                <option value="BR">Brasil (idem; CNPJá disponível à parte)</option>
+              </select>
+            </Field>
+          </ActionForm>
+
+          <ActionForm action={runDiscoveryAction.bind(null, plan.id)} submitLabel="Descobrir empresas">
+            <Field label="Quantas empresas buscar (5–30)">
+              <Input name="requested" type="number" defaultValue="12" />
+            </Field>
+          </ActionForm>
+
+          {lastRun && (
+            <div className="rounded-md bg-surface-muted p-3 text-xs text-muted-foreground">
+              Última rodada: <strong>{lastRun.status}</strong>
+              {lastRun.query ? ` · "${lastRun.query}"` : ""} · {lastRun.found} empresas · {lastRun.withEmail} com e-mail
+              {lastRun.error ? ` · erro: ${lastRun.error}` : ""}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Ranking da rodada */}
+      {lastRun && lastRun.results.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle>Ranking ({lastRun.results.length} empresas)</CardTitle></CardHeader>
+          <CardContent className="divide-y divide-border p-0">
+            {lastRun.results.map((r) => (
+              <div key={r.id} className="flex items-center justify-between px-5 py-3">
+                <div className="flex flex-col">
+                  <Link href={`/companies/${r.company.id}`} className="text-sm font-medium hover:underline">
+                    {r.company.name}
+                  </Link>
+                  <span className="text-xs text-muted-foreground">
+                    {r.company.domain ?? "—"}
+                    {r.company.email ? ` · ${r.company.email}` : " · sem e-mail"}
+                    {r.company.city ? ` · ${r.company.city}` : ""}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {r.emailFound && <Badge variant="outline">e-mail</Badge>}
+                  {r.tier && <Badge variant={(TIER_LABEL[r.tier] ?? "default") as "solid" | "default" | "outline"}>{r.tier}</Badge>}
+                  <span className="text-sm font-semibold tabular-nums">{r.rankScore != null ? Math.round(r.rankScore) : "—"}</span>
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Dados básicos */}
       <Card>

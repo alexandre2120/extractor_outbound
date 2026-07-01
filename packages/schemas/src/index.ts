@@ -75,6 +75,15 @@ export const researchResult = z.object({
 });
 export type ResearchResult = z.infer<typeof researchResult>;
 
+export const rankingOutput = z.object({
+  score: z.number().min(0).max(100),
+  tier: z.enum(["A", "B", "C"]),
+  fitReasons: z.array(z.string()).default([]),
+  contactQuality: z.string().optional(),
+  redFlags: z.array(z.string()).default([]),
+});
+export type RankingOutput = z.infer<typeof rankingOutput>;
+
 export const generatedMessageOutput = z.object({
   subject: z.string().optional(),
   body: z.string().min(1),

@@ -37,6 +37,13 @@ enum JobStatus {
   CANCELLED
 }
 
+enum DiscoveryStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+}
+
 enum EnrichmentStatus {
   DRAFT
   GENERATED
@@ -106,6 +113,7 @@ model Workspace {
   campaigns        OutboundCampaign[]
   agentTasks       AgentTask[]
   checkpoints      ProjectCheckpoint[]
+  discoveryRuns    DiscoveryRun[]
 }
 
 model BusinessProfile {
@@ -150,8 +158,9 @@ model Plan {
   segments    PlanSegment[]
   personas    PlanPersona[]
   constraints PlanConstraint[]
-  leadLists   LeadList[]
-  campaigns   OutboundCampaign[]
+  leadLists     LeadList[]
+  campaigns     OutboundCampaign[]
+  discoveryRuns DiscoveryRun[]
 
   @@index([workspaceId])
 }
@@ -251,6 +260,8 @@ model Company {
   countryCode String?
   domain      String?
   email       String?
+  emailSource String? // website | apollo | provider
+  emailType   String? // pessoal | generico
   phone       String?
   city        String?
   state       String?
@@ -258,13 +269,14 @@ model Company {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  workspace    Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  registryData CompanyRegistryData?
-  website      CompanyWebsite?
-  researchJobs CompanyResearchJob[]
-  enrichments  AIEnrichment[]
-  listMembers  LeadListMember[]
-  messages     GeneratedMessage[]
+  workspace        Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  registryData     CompanyRegistryData?
+  website          CompanyWebsite?
+  researchJobs     CompanyResearchJob[]
+  enrichments      AIEnrichment[]
+  listMembers      LeadListMember[]
+  messages         GeneratedMessage[]
+  discoveryResults DiscoveryResult[]
 
   @@unique([workspaceId, taxId])
   @@index([workspaceId])
@@ -455,6 +467,49 @@ model DeliveryEvent {
 // -----------------------------------------------------------------------------
 // Providers, orquestração & documentação
 // -----------------------------------------------------------------------------
+
+// -----------------------------------------------------------------------------
+// Discovery — motor de descoberta em lote a partir do Plan
+// -----------------------------------------------------------------------------
+
+model DiscoveryRun {
+  id          String          @id @default(cuid())
+  planId      String
+  workspaceId String
+  status      DiscoveryStatus @default(PENDING)
+  query       String? // query base derivada do plano
+  sources     String? // csv de fontes usadas (web, maps, apollo...)
+  requested   Int             @default(15)
+  found       Int             @default(0)
+  withEmail   Int             @default(0)
+  error       String?
+  createdAt   DateTime        @default(now())
+  finishedAt  DateTime?
+
+  plan      Plan              @relation(fields: [planId], references: [id], onDelete: Cascade)
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  results   DiscoveryResult[]
+
+  @@index([planId])
+  @@index([status])
+}
+
+model DiscoveryResult {
+  id         String   @id @default(cuid())
+  runId      String
+  companyId  String
+  rankScore  Float?
+  tier       String? // A | B | C
+  reasons    Json?
+  emailFound Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  run     DiscoveryRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  company Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, companyId])
+  @@index([runId])
+}
 
 model ProviderSource {
   id        String       @id @default(cuid())

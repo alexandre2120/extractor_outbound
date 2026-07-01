@@ -33,7 +33,17 @@ export default async function PlansPage() {
         <CardContent>
           <ActionForm action={createBusinessProfileAndPlan} submitLabel="Criar plano">
             <Field label="Nome do plano">
-              <Input name="planName" placeholder="Plano inicial — Brasil" />
+              <Input name="planName" placeholder="Plano inicial — Portugal" />
+            </Field>
+            <Field label="País-alvo">
+              <select
+                name="country"
+                defaultValue="PT"
+                className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <option value="PT">Portugal</option>
+                <option value="BR">Brasil</option>
+              </select>
             </Field>
             <Field label="O que você vende (oferta)">
               <Input name="offer" placeholder="Plataforma de automação de outbound B2B" required />

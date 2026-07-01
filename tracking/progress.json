@@ -12,6 +12,7 @@
   ],
   "modules": [
     { "name": "Onboarding / Plan Builder", "status": "funcional (form + action)" },
+    { "name": "Lead Discovery (motor web + ranking IA)", "status": "P0 funcional: plano → descoberta+email → ranking (PT/BR)" },
     { "name": "Lead Discovery (ingestão CNPJá)", "status": "funcional, testado via UI" },
     { "name": "Company Registry / microCRM", "status": "funcional" },
     { "name": "Browser Research", "status": "Playwright async no worker (fila research)" },

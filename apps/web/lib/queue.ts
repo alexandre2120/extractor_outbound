@@ -18,3 +18,4 @@ function queue(name: string): Queue {
 export const researchQueue = queue("research");
 export const enrichmentQueue = queue("enrichment");
 export const outboundQueue = queue("outbound");
+export const discoveryQueue = queue("discovery");

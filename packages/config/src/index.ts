@@ -26,6 +26,8 @@ const envSchema = z.object({
   CNPJA_API_KEY: z.string().optional(),
   CNPJWS_API_KEY: z.string().optional(),
 
+  APOLLO_KEY: z.string().optional(),
+
   BROWSER_RESEARCH_HEADLESS: z
     .string()
     .default("true")
