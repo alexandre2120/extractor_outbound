@@ -1,4 +1,5 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, Field, Input, Textarea, Badge } from "@repo/ui";
+import Link from "next/link";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, Field, Input, Badge } from "@repo/ui";
 import { prisma } from "@repo/db";
 import { ActionForm } from "@/components/action-form";
 import { createBusinessProfileAndPlan } from "@/lib/actions";
@@ -58,7 +59,11 @@ export default async function PlansPage() {
           <Card>
             <CardContent className="divide-y divide-border p-0">
               {plans.map((p) => (
-                <div key={p.id} className="flex items-center justify-between px-5 py-3">
+                <Link
+                  key={p.id}
+                  href={`/plans/${p.id}`}
+                  className="flex items-center justify-between px-5 py-3 hover:bg-surface-muted"
+                >
                   <div className="flex flex-col">
                     <span className="text-sm font-medium">{p.name}</span>
                     <span className="text-xs text-muted-foreground">{p.objective}</span>
@@ -68,7 +73,7 @@ export default async function PlansPage() {
                       <Badge key={m.id} variant="outline">{m.market}</Badge>
                     ))}
                   </div>
-                </div>
+                </Link>
               ))}
             </CardContent>
           </Card>

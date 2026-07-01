@@ -251,3 +251,78 @@ export async function sendMessageAction(messageId: string, companyId: string): P
     return { ok: false, message: (e as Error).message };
   }
 }
+
+// --- Plan editor -------------------------------------------------------------
+
+export async function updatePlanAction(planId: string, formData: FormData): Promise<ActionResult> {
+  const name = String(formData.get("name") ?? "").trim();
+  const objective = String(formData.get("objective") ?? "").trim();
+  const valueProp = String(formData.get("valueProp") ?? "").trim() || null;
+  const tone = String(formData.get("tone") ?? "").trim() || null;
+  if (!name || !objective) return { ok: false, message: "Nome e objetivo são obrigatórios." };
+
+  await prisma.plan.update({
+    where: { id: planId },
+    data: { name, objective, valueProp, tone },
+  });
+  revalidatePath(`/plans/${planId}`);
+  revalidatePath("/plans");
+  return { ok: true, message: "Plano atualizado." };
+}
+
+export async function addSegmentAction(planId: string, formData: FormData): Promise<ActionResult> {
+  const label = String(formData.get("label") ?? "").trim();
+  if (!label) return { ok: false, message: "Informe o segmento." };
+  await prisma.planSegment.create({
+    data: {
+      planId,
+      label,
+      keywords: String(formData.get("keywords") ?? "").trim() || null,
+      cnaeCodes: String(formData.get("cnaeCodes") ?? "").trim() || null,
+    },
+  });
+  revalidatePath(`/plans/${planId}`);
+  return { ok: true, message: "Segmento adicionado." };
+}
+
+export async function addPersonaAction(planId: string, formData: FormData): Promise<ActionResult> {
+  const role = String(formData.get("role") ?? "").trim();
+  if (!role) return { ok: false, message: "Informe o cargo/persona." };
+  await prisma.planPersona.create({
+    data: {
+      planId,
+      role,
+      seniority: String(formData.get("seniority") ?? "").trim() || null,
+      painPoints: String(formData.get("painPoints") ?? "").trim() || null,
+    },
+  });
+  revalidatePath(`/plans/${planId}`);
+  return { ok: true, message: "Persona adicionada." };
+}
+
+export async function addConstraintAction(planId: string, formData: FormData): Promise<ActionResult> {
+  const type = String(formData.get("type") ?? "").trim();
+  const value = String(formData.get("value") ?? "").trim();
+  if (!type || !value) return { ok: false, message: "Informe tipo e valor da restrição." };
+  await prisma.planConstraint.create({ data: { planId, type, value } });
+  revalidatePath(`/plans/${planId}`);
+  return { ok: true, message: "Restrição adicionada." };
+}
+
+export async function removeSegmentAction(id: string, planId: string): Promise<ActionResult> {
+  await prisma.planSegment.delete({ where: { id } });
+  revalidatePath(`/plans/${planId}`);
+  return { ok: true, message: "Segmento removido." };
+}
+
+export async function removePersonaAction(id: string, planId: string): Promise<ActionResult> {
+  await prisma.planPersona.delete({ where: { id } });
+  revalidatePath(`/plans/${planId}`);
+  return { ok: true, message: "Persona removida." };
+}
+
+export async function removeConstraintAction(id: string, planId: string): Promise<ActionResult> {
+  await prisma.planConstraint.delete({ where: { id } });
+  revalidatePath(`/plans/${planId}`);
+  return { ok: true, message: "Restrição removida." };
+}

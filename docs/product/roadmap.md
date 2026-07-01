@@ -26,7 +26,7 @@
 
 ### Próximos (Camada 2.1)
 
-- [ ] Editar Plan na UI (segmentos, personas, restrições).
+- [x] Editar Plan na UI (segmentos, personas, restrições).
 - [x] Browser research com Playwright (render JS, descoberta de links).
 - [x] Research/enrichment como jobs assíncronos no worker (BullMQ + UI polling).
 - [ ] Sequências multi-step + webhook Brevo (open/click/reply).
