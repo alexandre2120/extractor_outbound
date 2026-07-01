@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma, ProviderKind, JobStatus, EnrichmentStatus, MessageStatus, DeliveryEventType } from "@repo/db";
+import { prisma, ProviderKind, JobStatus, EnrichmentStatus, MessageStatus, DeliveryEventType, CampaignStatus } from "@repo/db";
 import { clientsFromEnv, generateColdMessage } from "@repo/integrations";
 import { getWorkspace, getDefaultLeadList } from "./workspace";
 import { researchQueue, enrichmentQueue } from "./queue";
@@ -325,4 +325,100 @@ export async function removeConstraintAction(id: string, planId: string): Promis
   await prisma.planConstraint.delete({ where: { id } });
   revalidatePath(`/plans/${planId}`);
   return { ok: true, message: "Restrição removida." };
+}
+
+// --- Campaigns / sequences ---------------------------------------------------
+
+export async function createCampaignAction(formData: FormData): Promise<ActionResult> {
+  const name = String(formData.get("name") ?? "").trim();
+  if (!name) return { ok: false, message: "Informe o nome da campanha." };
+  const ws = await getWorkspace();
+  const plan = await prisma.plan.findFirst({ where: { workspaceId: ws.id }, orderBy: { createdAt: "desc" } });
+  await prisma.outboundCampaign.create({
+    data: { workspaceId: ws.id, planId: plan?.id ?? null, name, channel: "email" },
+  });
+  revalidatePath("/campaigns");
+  return { ok: true, message: "Campanha criada." };
+}
+
+export async function addStepAction(campaignId: string, formData: FormData): Promise<ActionResult> {
+  const template = String(formData.get("template") ?? "").trim();
+  const delayDays = Number(formData.get("delayDays") ?? 0) || 0;
+  if (!template) return { ok: false, message: "Descreva o objetivo do passo." };
+  const count = await prisma.sequenceStep.count({ where: { campaignId } });
+  await prisma.sequenceStep.create({
+    data: { campaignId, order: count + 1, channel: "email", delayDays, template },
+  });
+  revalidatePath(`/campaigns/${campaignId}`);
+  return { ok: true, message: "Passo adicionado." };
+}
+
+export async function removeStepAction(stepId: string, campaignId: string): Promise<ActionResult> {
+  await prisma.sequenceStep.delete({ where: { id: stepId } });
+  revalidatePath(`/campaigns/${campaignId}`);
+  return { ok: true, message: "Passo removido." };
+}
+
+export async function setCampaignStatusAction(campaignId: string, status: CampaignStatus): Promise<ActionResult> {
+  await prisma.outboundCampaign.update({ where: { id: campaignId }, data: { status } });
+  revalidatePath(`/campaigns/${campaignId}`);
+  return { ok: true, message: `Campanha ${status}.` };
+}
+
+/** Gera uma mensagem por passo da sequência para a empresa (KIE). */
+export async function generateSequenceForCompanyAction(campaignId: string, formData: FormData): Promise<ActionResult> {
+  const companyId = String(formData.get("companyId") ?? "");
+  if (!companyId) return { ok: false, message: "Escolha uma empresa." };
+
+  const { kie } = clientsFromEnv();
+  if (!kie) return { ok: false, message: "KIE não configurado." };
+
+  const campaign = await prisma.outboundCampaign.findUnique({
+    where: { id: campaignId },
+    include: { steps: { orderBy: { order: "asc" } }, plan: true },
+  });
+  if (!campaign) return { ok: false, message: "Campanha não encontrada." };
+  if (campaign.steps.length === 0) return { ok: false, message: "Adicione passos à sequência antes." };
+
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    include: {
+      website: true,
+      enrichments: { where: { status: EnrichmentStatus.APPROVED }, orderBy: { version: "desc" }, take: 1 },
+    },
+  });
+  if (!company) return { ok: false, message: "Empresa não encontrada." };
+  const enrichment = company.enrichments[0];
+  if (!enrichment) return { ok: false, message: "Aprove um enrichment da empresa antes." };
+
+  try {
+    let created = 0;
+    for (const step of campaign.steps) {
+      const { result } = await generateColdMessage(kie, {
+        planObjective: campaign.plan?.objective ?? "Gerar pipeline outbound B2B",
+        valueProp: campaign.plan?.valueProp ?? "",
+        tone: campaign.plan?.tone ?? "direto e consultivo",
+        companyName: company.name,
+        approachAngle: `${enrichment.approachAngle ?? ""} | Passo ${step.order} (dia ${step.delayDays}): ${step.template}`,
+        factualSummary: company.website?.factualSummary ?? "",
+      });
+      await prisma.generatedMessage.create({
+        data: {
+          campaignId,
+          stepId: step.id,
+          companyId,
+          enrichmentId: enrichment.id,
+          channel: "email",
+          subject: result.subject,
+          body: result.body,
+          status: MessageStatus.DRAFT,
+        },
+      });
+      created++;
+    }
+    revalidatePath(`/campaigns/${campaignId}`);
+    return { ok: true, message: `Sequência gerada: ${created} mensagem(ns).` };
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
 }

@@ -29,6 +29,8 @@
 - [x] Editar Plan na UI (segmentos, personas, restrições).
 - [x] Browser research com Playwright (render JS, descoberta de links).
 - [x] Research/enrichment como jobs assíncronos no worker (BullMQ + UI polling).
-- [ ] Sequências multi-step + webhook Brevo (open/click/reply).
+- [x] Sequências multi-step (campanha + passos + geração por passo via KIE).
+- [x] Webhook Brevo (delivered/opened/click/bounce → DeliveryEvent). Reply fora de escopo.
 - [ ] Mover ingestão/outbound também para a fila (lotes).
+- [ ] Reply tracking (parsing de e-mail inbound) — requer provider de inbound.
 - [ ] Mover enrichment/outbound para a fila do worker (lotes aprovados).

@@ -16,7 +16,7 @@
     { "name": "Company Registry / microCRM", "status": "funcional" },
     { "name": "Browser Research", "status": "Playwright async no worker (fila research)" },
     { "name": "AI Enrichment (KIE)", "status": "async no worker (fila enrichment)" },
-    { "name": "Outbound (geração + Brevo)", "status": "wired; envio validado em conta própria" },
+    { "name": "Outbound (sequências + Brevo)", "status": "campanhas multi-step + webhook de eventos" },
     { "name": "Documentation & Tracking", "status": "feito" }
   ],
   "nextSteps": [

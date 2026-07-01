@@ -11,6 +11,6 @@
     { "agent": "data-providers", "status": "done", "notes": "CnpjaProvider; ingestão testada via UI" },
     { "agent": "browser-research", "status": "done", "notes": "Playwright (Chromium) + fallback fetch; testado in-app via UI" },
     { "agent": "ai-gateway", "status": "done", "notes": "KieClient + enrichment/mensagem validados por schema" },
-    { "agent": "outbound-messaging", "status": "in_progress", "notes": "BrevoClient + envio/DeliveryEvent; sequências pendentes" }
+    { "agent": "outbound-messaging", "status": "done", "notes": "sequências multi-step + envio Brevo + webhook de eventos (testado)" }
   ]
 }

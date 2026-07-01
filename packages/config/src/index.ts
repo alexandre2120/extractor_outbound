@@ -17,6 +17,7 @@ const envSchema = z.object({
   BREVO_API_KEY: z.string().optional(),
   BREVO_SENDER_EMAIL: z.string().email().optional(),
   BREVO_SENDER_NAME: z.string().optional(),
+  BREVO_WEBHOOK_SECRET: z.string().optional(),
 
   KIE_API_KEY: z.string().optional(),
   KIE_BASE_URL: z.string().url().default("https://api.kie.ai"),
