@@ -99,19 +99,35 @@ const nullableTrimmedString = z
   .optional()
   .transform((value) => value ?? null);
 
+const nullableHexColor = nullableTrimmedString.transform((value) => {
+  if (!value) return null;
+  const normalized = value.toUpperCase();
+  return /^#[0-9A-F]{6}$/.test(normalized) ? normalized : null;
+});
+
+const nullableHttpsUrl = nullableTrimmedString.transform((value) => {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+});
+
 export const extractedTemplateSettingsOutput = z.object({
   brandName: nullableTrimmedString,
   websiteUrl: z.string().trim().min(1),
-  logoUrl: nullableTrimmedString,
-  primaryColor: nullableTrimmedString,
-  accentColor: nullableTrimmedString,
-  backgroundColor: nullableTrimmedString,
+  logoUrl: nullableHttpsUrl,
+  primaryColor: nullableHexColor,
+  accentColor: nullableHexColor,
+  backgroundColor: nullableHexColor,
   fontFamily: nullableTrimmedString,
   senderName: nullableTrimmedString,
   senderRole: nullableTrimmedString,
   signature: nullableTrimmedString,
   ctaLabel: nullableTrimmedString,
-  ctaUrl: nullableTrimmedString,
+  ctaUrl: nullableHttpsUrl,
   offerSummary: nullableTrimmedString,
   valueProposition: nullableTrimmedString,
   tone: nullableTrimmedString,
