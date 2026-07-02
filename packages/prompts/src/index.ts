@@ -48,6 +48,23 @@ export const MESSAGE_SYSTEM = `Você escreve cold emails B2B curtos, específico
 - Sem promessas vagas, sem "AI slop", sem floreio.
 - Responda SOMENTE em JSON: { subject, body, channel }.`;
 
+export interface TemplateSettingsPromptInput {
+  websiteUrl: string;
+  evidence: string;
+  logoCandidates: string[];
+  colorCandidates: string[];
+}
+
+export const TEMPLATE_SETTINGS_SYSTEM = `Voce extrai branding e material comercial de um site B2B.
+Regras:
+- Use APENAS as evidencias fornecidas.
+- Se nao houver evidencia suficiente para um campo, retorne null.
+- Cores devem estar no formato #RRGGBB quando confiaveis.
+- URLs de logo e CTA devem ser https:// quando confiaveis.
+- O campo offerSummary deve responder claramente "o que a empresa vende".
+- Nao invente clientes, cases, metricas ou promessas.
+- Responda SOMENTE em JSON valido conforme o schema solicitado.`;
+
 export interface RankingPromptInput {
   planObjective: string;
   icpSegment: string;
@@ -95,4 +112,39 @@ Empresa alvo: ${i.companyName}
 Resumo factual da empresa: ${i.factualSummary}
 
 Escreva um cold email curto (máx. 120 palavras) com assunto e corpo.`;
+}
+
+export function buildTemplateSettingsPrompt(
+  input: TemplateSettingsPromptInput,
+): string {
+  return `Website da empresa usuaria: ${input.websiteUrl}
+
+Evidencias observadas:
+${input.evidence || "(sem evidencias textuais suficientes)"}
+
+Candidatos de logo:
+${input.logoCandidates.length ? input.logoCandidates.join("\n") : "(nenhum)"}
+
+Candidatos de cores:
+${input.colorCandidates.length ? input.colorCandidates.join(", ") : "(nenhuma)"}
+
+Gere JSON com exatamente estes campos:
+{
+  "brandName": string | null,
+  "websiteUrl": string,
+  "logoUrl": string | null,
+  "primaryColor": string | null,
+  "accentColor": string | null,
+  "backgroundColor": string | null,
+  "fontFamily": string | null,
+  "senderName": string | null,
+  "senderRole": string | null,
+  "signature": string | null,
+  "ctaLabel": string | null,
+  "ctaUrl": string | null,
+  "offerSummary": string | null,
+  "valueProposition": string | null,
+  "tone": string | null,
+  "evidenceRefs": string[]
+}`;
 }

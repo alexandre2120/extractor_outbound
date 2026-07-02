@@ -4,17 +4,22 @@ import {
   ENRICHMENT_SYSTEM,
   buildMessagePrompt,
   MESSAGE_SYSTEM,
+  buildTemplateSettingsPrompt,
+  TEMPLATE_SETTINGS_SYSTEM,
   buildRankingPrompt,
   RANKING_SYSTEM,
   type EnrichmentPromptInput,
   type MessagePromptInput,
+  type TemplateSettingsPromptInput,
   type RankingPromptInput,
 } from "@repo/prompts";
 import {
   aiEnrichmentOutput,
+  extractedTemplateSettingsOutput,
   generatedMessageOutput,
   rankingOutput,
   type AIEnrichmentOutput,
+  type ExtractedTemplateSettingsOutput,
   type GeneratedMessageOutput,
   type RankingOutput,
 } from "@repo/schemas";
@@ -27,6 +32,10 @@ export * from "./kie";
 export * from "./brevo";
 export * from "./research";
 export * from "./research-playwright";
+export {
+  researchBrandingWebsite,
+  type BrandingResearchOutput,
+} from "./branding-research";
 export { duckDuckGoProvider, type SearchHit, type SearchProvider } from "./search";
 export { extractEmail, type EmailResult } from "./email-extract";
 export { ApolloClient, type ApolloOrg } from "./apollo";
@@ -127,5 +136,20 @@ export async function generateColdMessage(
     { maxTokens: 500 },
   );
   const result = generatedMessageOutput.parse(data);
+  return { result, creditsConsumed };
+}
+
+export async function extractTemplateSettings(
+  kie: KieClient,
+  input: TemplateSettingsPromptInput,
+): Promise<{ result: ExtractedTemplateSettingsOutput; creditsConsumed?: number }> {
+  const { data, creditsConsumed } = await kie.chatJson(
+    [
+      { role: "system", content: TEMPLATE_SETTINGS_SYSTEM },
+      { role: "user", content: buildTemplateSettingsPrompt(input) },
+    ],
+    { maxTokens: 900 },
+  );
+  const result = extractedTemplateSettingsOutput.parse(data);
   return { result, creditsConsumed };
 }
