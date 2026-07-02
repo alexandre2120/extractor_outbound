@@ -1,5 +1,15 @@
 import Link from "next/link";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, Field, Input, Badge } from "@repo/ui";
+import {
+  Badge,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Field,
+  Input,
+  Textarea,
+} from "@repo/ui";
 import { prisma } from "@repo/db";
 import { ActionForm } from "@/components/action-form";
 import { createBusinessProfileAndPlan } from "@/lib/actions";
@@ -28,10 +38,15 @@ export default async function PlansPage() {
       <Card>
         <CardHeader>
           <CardTitle>Onboarding — oferta + plano</CardTitle>
-          <CardDescription>Cria BusinessProfile e Plan (mercado Brasil).</CardDescription>
+          <CardDescription>
+            Cria BusinessProfile e Plan (mercado Brasil).
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <ActionForm action={createBusinessProfileAndPlan} submitLabel="Criar plano">
+          <ActionForm
+            action={createBusinessProfileAndPlan}
+            submitLabel="Criar plano"
+          >
             <Field label="Nome do plano">
               <Input name="planName" placeholder="Plano inicial — Portugal" />
             </Field>
@@ -46,13 +61,25 @@ export default async function PlansPage() {
               </select>
             </Field>
             <Field label="O que você vende (oferta)">
-              <Input name="offer" placeholder="Plataforma de automação de outbound B2B" required />
+              <Textarea
+                name="offer"
+                placeholder="Ex: plataforma de automação de outbound B2B para times comerciais enxutos."
+                required
+              />
             </Field>
             <Field label="Proposta de valor">
-              <Input name="valueProp" placeholder="Mais reuniões qualificadas com menos esforço" required />
+              <Textarea
+                name="valueProp"
+                placeholder="Ex: ajuda a transformar listas frias em reuniões qualificadas com menos esforço manual."
+                required
+              />
             </Field>
             <Field label="Objetivo comercial">
-              <Input name="objective" placeholder="Gerar pipeline em agências de marketing no Brasil" required />
+              <Textarea
+                name="objective"
+                placeholder="Ex: gerar pipeline em escritórios de contabilidade em Portugal."
+                required
+              />
             </Field>
             <Field label="Tom de comunicação">
               <Input name="tone" placeholder="Direto e consultivo" />
@@ -62,7 +89,9 @@ export default async function PlansPage() {
       </Card>
 
       <div className="flex flex-col gap-3">
-        <h2 className="text-sm font-medium text-muted-foreground">Planos existentes</h2>
+        <h2 className="text-sm font-medium text-muted-foreground">
+          Planos existentes
+        </h2>
         {plans.length === 0 ? (
           <p className="text-sm text-muted-foreground">Nenhum plano ainda.</p>
         ) : (
@@ -76,11 +105,15 @@ export default async function PlansPage() {
                 >
                   <div className="flex flex-col">
                     <span className="text-sm font-medium">{p.name}</span>
-                    <span className="text-xs text-muted-foreground">{p.objective}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {p.objective}
+                    </span>
                   </div>
                   <div className="flex gap-1">
                     {p.markets.map((m) => (
-                      <Badge key={m.id} variant="outline">{m.market}</Badge>
+                      <Badge key={m.id} variant="outline">
+                        {m.market}
+                      </Badge>
                     ))}
                   </div>
                 </Link>

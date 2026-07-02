@@ -1,141 +1,507 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle, Field, Input, Badge } from "@repo/ui";
+import { Field, Input, Textarea } from "@repo/ui";
 import { prisma } from "@repo/db";
-import { getWorkspace } from "@/lib/workspace";
-import { ActionForm } from "@/components/action-form";
 import { ActionButton } from "@/components/action-button";
+import { ActionForm } from "@/components/action-form";
+import {
+  EmptyState,
+  PageHeader,
+  SectionCard,
+  SectionTitle,
+  StageStepper,
+  StatusPill,
+} from "@/components/flow-ui";
+import { MessagePreviewCard } from "@/components/message-preview-card";
+import { getCampaignPrimaryAction } from "@/lib/flow";
+import { getWorkspace } from "@/lib/workspace";
+import {
+  getSelectedCompanyIds,
+  type SearchParamsLike,
+} from "@/lib/campaign-selection";
+import {
+  getSelectedCompanyPrepIds,
+  getSelectedCompanyReadiness,
+} from "@/lib/selected-companies";
 import {
   addStepAction,
-  removeStepAction,
+  approveEnrichmentAction,
+  enrichCompanyAction,
   generateSequenceForCompanyAction,
-  setCampaignStatusAction,
+  prepareSelectedCompaniesAction,
+  removeStepAction,
+  runResearchAction,
   sendMessageAction,
+  setCampaignStatusAction,
 } from "@/lib/actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function CampaignDetail({ params }: { params: Promise<{ id: string }> }) {
+export default async function CampaignDetail({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<SearchParamsLike>;
+}) {
   const { id } = await params;
+  const selectedCompanyIds = getSelectedCompanyIds((await searchParams) ?? {});
   const ws = await getWorkspace();
-  const campaign = await prisma.outboundCampaign.findUnique({
-    where: { id },
-    include: {
-      plan: true,
-      steps: { orderBy: { order: "asc" } },
-      messages: { orderBy: { createdAt: "asc" }, include: { company: true, events: true, step: true } },
-    },
-  });
+  const [campaign, selectedCompanies] = await Promise.all([
+    prisma.outboundCampaign.findUnique({
+      where: { id },
+      include: {
+        plan: true,
+        steps: { orderBy: { order: "asc" } },
+        messages: {
+          orderBy: [{ createdAt: "asc" }],
+          include: { company: true, events: true, step: true },
+        },
+      },
+    }),
+    selectedCompanyIds.length
+      ? prisma.company.findMany({
+          where: { id: { in: selectedCompanyIds }, workspaceId: ws.id },
+          orderBy: { name: "asc" },
+          include: {
+            website: true,
+            researchJobs: { orderBy: { createdAt: "desc" }, take: 3 },
+            enrichments: { orderBy: { version: "desc" }, take: 3 },
+          },
+        })
+      : Promise.resolve([]),
+  ]);
   if (!campaign) notFound();
 
-  // Empresas elegíveis: têm enrichment aprovado.
   const eligible = await prisma.company.findMany({
-    where: { workspaceId: ws.id, enrichments: { some: { status: "APPROVED" } } },
+    where: {
+      workspaceId: ws.id,
+      enrichments: { some: { status: "APPROVED" } },
+    },
     orderBy: { name: "asc" },
-    select: { id: true, name: true },
+    select: { id: true, name: true, domain: true, email: true },
+  });
+  const selectedCompanyInputs = selectedCompanies.map((company) => ({
+    id: company.id,
+    name: company.name,
+    domain: company.domain,
+    email: company.email,
+    websiteSummary: company.website?.factualSummary ?? null,
+    researchStatuses: company.researchJobs.map((job) => job.status),
+    enrichmentStatuses: company.enrichments.map(
+      (enrichment) => enrichment.status,
+    ),
+  }));
+  const selectedReadiness = getSelectedCompanyReadiness(selectedCompanyInputs);
+  const selectedPrepIds = getSelectedCompanyPrepIds(selectedCompanyInputs);
+  const selectedReadyIds = new Set(selectedReadiness.ready);
+  const selectedApprovalIds = new Set(selectedReadiness.needsApproval);
+  const selectedEnrichmentIds = new Set(selectedReadiness.needsEnrichment);
+  const selectedResearchIds = new Set(selectedReadiness.needsResearch);
+  const selectedBlockedIds = new Set(selectedReadiness.blocked);
+  const selectedPendingCount = selectedCompanies.length - selectedReadyIds.size;
+  const selectedCanPrepareCount =
+    selectedPrepIds.approveIds.length +
+    selectedPrepIds.enrichIds.length +
+    selectedPrepIds.researchIds.length;
+  const selectedNeedApprovalCount = selectedPrepIds.approveIds.length;
+  const selectedNeedEnrichmentCount = selectedPrepIds.enrichIds.length;
+  const selectedNeedResearchCount = selectedPrepIds.researchIds.length;
+  const selectedBlockedCount = selectedReadiness.blocked.length;
+  const selectedStatusSummary = [
+    `${selectedReadyIds.size} pronta(s)`,
+    selectedNeedApprovalCount
+      ? `${selectedNeedApprovalCount} para aprovar`
+      : null,
+    selectedNeedEnrichmentCount
+      ? `${selectedNeedEnrichmentCount} para enriquecer`
+      : null,
+    selectedNeedResearchCount
+      ? `${selectedNeedResearchCount} para pesquisar`
+      : null,
+    selectedBlockedCount ? `${selectedBlockedCount} aguardando dados` : null,
+  ].filter(Boolean);
+  const selectedActionIds = Array.from(
+    new Set([
+      ...selectedPrepIds.approveIds,
+      ...selectedPrepIds.enrichIds,
+      ...selectedPrepIds.researchIds,
+    ]),
+  );
+  const sortedEligible = eligible.slice().sort((a, b) => {
+    const aSelected = selectedReadyIds.has(a.id);
+    const bSelected = selectedReadyIds.has(b.id);
+    if (aSelected === bSelected) return a.name.localeCompare(b.name);
+    return aSelected ? -1 : 1;
+  });
+  const primary = getCampaignPrimaryAction({
+    stepCount: campaign.steps.length,
+    messageCount: campaign.messages.length,
+    hasDraftMessages: campaign.messages.some(
+      (message) => message.status !== "SENT",
+    ),
   });
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-1">
-        <Link href="/campaigns" className="text-xs text-muted-foreground hover:text-foreground">← Campaigns</Link>
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold tracking-tight">{campaign.name}</h1>
-          <Badge variant={campaign.status === "ACTIVE" ? "solid" : "outline"}>{campaign.status}</Badge>
-        </div>
-        <p className="text-sm text-muted-foreground">Plano: {campaign.plan?.name ?? "—"}</p>
-        <div className="mt-2 flex gap-2">
-          {campaign.status !== "ACTIVE" && (
-            <ActionButton action={setCampaignStatusAction.bind(null, campaign.id, "ACTIVE")} label="Ativar" size="sm" />
-          )}
-          {campaign.status === "ACTIVE" && (
-            <ActionButton action={setCampaignStatusAction.bind(null, campaign.id, "PAUSED")} label="Pausar" size="sm" variant="outline" />
-          )}
-        </div>
-      </div>
+    <div className="flex flex-col gap-6">
+      <StageStepper current={primary.stage} />
 
-      {/* Passos da sequência */}
-      <Card>
-        <CardHeader><CardTitle>Sequência ({campaign.steps.length} passos)</CardTitle></CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {campaign.steps.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum passo. Adicione ao menos um.</p>
-          ) : (
-            <div className="flex flex-col divide-y divide-border">
-              {campaign.steps.map((s) => (
-                <div key={s.id} className="flex items-center justify-between py-2">
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">Passo {s.order} · dia {s.delayDays}</span>
-                    <span className="text-xs text-muted-foreground">{s.template}</span>
+      <Link
+        href="/campaigns"
+        className="text-xs text-muted-foreground hover:text-foreground"
+      >
+        ← Campanhas
+      </Link>
+
+      <PageHeader
+        eyebrow="Campanha"
+        title={campaign.name}
+        description={`${campaign.steps.length} passos · ${campaign.messages.length} mensagens · plano ${campaign.plan?.name ?? "—"}`}
+        action={
+          <CampaignPrimaryAction
+            label={primary.label}
+            stepCount={campaign.steps.length}
+          />
+        }
+      >
+        <StatusPill
+          variant={campaign.status === "ACTIVE" ? "solid" : "outline"}
+        >
+          {campaign.status}
+        </StatusPill>
+        {campaign.status !== "ACTIVE" ? (
+          <ActionButton
+            action={setCampaignStatusAction.bind(null, campaign.id, "ACTIVE")}
+            label="Ativar"
+            size="sm"
+          />
+        ) : (
+          <ActionButton
+            action={setCampaignStatusAction.bind(null, campaign.id, "PAUSED")}
+            label="Pausar"
+            size="sm"
+            variant="outline"
+          />
+        )}
+      </PageHeader>
+
+      <div className="grid gap-4 lg:grid-cols-[300px_1fr] lg:items-start">
+        <SectionCard>
+          <SectionTitle
+            title="Sequência"
+            description="Ordem e objetivo de cada toque."
+          />
+          <div className="p-5">
+            {campaign.steps.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nenhum passo. Adicione ao menos um.
+              </p>
+            ) : (
+              <div className="flex flex-col">
+                {campaign.steps.map((step, index) => (
+                  <div key={step.id} className="flex gap-3 pb-5 last:pb-0">
+                    <div className="flex flex-col items-center">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-foreground font-mono text-xs font-semibold text-background">
+                        {step.order}
+                      </div>
+                      {index < campaign.steps.length - 1 && (
+                        <div className="mt-1 min-h-8 w-px flex-1 bg-border" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1 pt-0.5">
+                      <div className="font-mono text-[11px] text-muted-foreground">
+                        Dia {step.delayDays}
+                      </div>
+                      <div className="mt-0.5 text-sm font-semibold">
+                        {step.template ?? "Sem objetivo"}
+                      </div>
+                      <div className="mt-2">
+                        <ActionButton
+                          action={removeStepAction.bind(
+                            null,
+                            step.id,
+                            campaign.id,
+                          )}
+                          label="Remover"
+                          variant="ghost"
+                          size="sm"
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <ActionButton action={removeStepAction.bind(null, s.id, campaign.id)} label="Remover" variant="ghost" size="sm" />
-                </div>
-              ))}
-            </div>
-          )}
-          <ActionForm action={addStepAction.bind(null, campaign.id)} submitLabel="Adicionar passo">
-            <div className="grid grid-cols-[1fr_100px] gap-3">
-              <Field label="Objetivo do passo"><Input name="template" placeholder="Intro: dor de prospecção manual" /></Field>
-              <Field label="Dia (delay)"><Input name="delayDays" type="number" defaultValue="0" /></Field>
-            </div>
-          </ActionForm>
-        </CardContent>
-      </Card>
+                ))}
+              </div>
+            )}
 
-      {/* Gerar sequência para empresa */}
-      <Card>
-        <CardHeader><CardTitle>Gerar sequência para empresa</CardTitle></CardHeader>
-        <CardContent>
-          {eligible.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Nenhuma empresa com enrichment aprovado. Aprove um enrichment em Companies primeiro.
-            </p>
-          ) : (
-            <ActionForm action={generateSequenceForCompanyAction.bind(null, campaign.id)} submitLabel="Gerar sequência (KIE)">
-              <Field label="Empresa (com enrichment aprovado)">
-                <select
-                  name="companyId"
-                  className="h-9 w-full rounded-md border border-border bg-surface px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {eligible.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-              </Field>
-            </ActionForm>
-          )}
-        </CardContent>
-      </Card>
+            <div id="add-step" className="mt-5 border-t border-border pt-5">
+              <ActionForm
+                action={addStepAction.bind(null, campaign.id)}
+                submitLabel="Adicionar passo"
+              >
+                <Field label="Objetivo do passo">
+                  <Textarea
+                    name="template"
+                    placeholder="Prova de valor com exemplo concreto"
+                  />
+                </Field>
+                <Field label="Dia (delay)">
+                  <Input name="delayDays" type="number" defaultValue="0" />
+                </Field>
+              </ActionForm>
+            </div>
+          </div>
+        </SectionCard>
 
-      {/* Mensagens geradas */}
-      <Card>
-        <CardHeader><CardTitle>Mensagens ({campaign.messages.length})</CardTitle></CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {campaign.messages.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhuma mensagem gerada.</p>
-          ) : (
-            campaign.messages.map((m) => (
-              <div key={m.id} className="rounded-md border border-border p-3">
-                <div className="mb-1 flex items-center justify-between">
-                  <span className="text-sm font-medium">
-                    {m.company.name} · passo {m.step?.order ?? "?"} — {m.subject ?? "(sem assunto)"}
-                  </span>
-                  <Badge variant={m.status === "SENT" ? "solid" : "default"}>{m.status}</Badge>
-                </div>
-                <p className="whitespace-pre-wrap text-xs text-muted-foreground">{m.body}</p>
-                <div className="mt-2 flex items-center gap-3">
-                  {m.status !== "SENT" && (
-                    <ActionButton action={sendMessageAction.bind(null, m.id, m.companyId)} label="Enviar (Brevo)" size="sm" pendingLabel="enviando..." />
-                  )}
-                  {m.events.length > 0 && (
-                    <span className="text-xs text-muted-foreground">
-                      eventos: {m.events.map((e) => e.type.toLowerCase()).join(", ")}
-                    </span>
-                  )}
+        <div className="flex flex-col gap-4">
+          {selectedCompanies.length > 0 && (
+            <SectionCard>
+              <SectionTitle
+                title="Selecionadas do ranking"
+                description={selectedStatusSummary.join(" · ")}
+              />
+              <div className="flex flex-col gap-4 p-5">
+                {selectedCanPrepareCount > 0 && (
+                  <div className="rounded-md border border-border bg-surface-muted/50 p-4">
+                    <div className="mb-3 text-sm font-medium">
+                      Próximo passo: preparar as empresas selecionadas.
+                    </div>
+                    <ActionForm
+                      action={prepareSelectedCompaniesAction.bind(
+                        null,
+                        campaign.id,
+                      )}
+                      submitLabel={`Preparar ${selectedCanPrepareCount} selecionada(s)`}
+                    >
+                      {selectedActionIds.map((companyId) => (
+                        <input
+                          key={companyId}
+                          type="hidden"
+                          name="companyId"
+                          value={companyId}
+                        />
+                      ))}
+                    </ActionForm>
+                  </div>
+                )}
+
+                <div className="divide-y divide-border rounded-md border border-border">
+                  {selectedCompanies.map((company) => {
+                    const generatedEnrichment = company.enrichments.find(
+                      (enrichment) =>
+                        enrichment.status === "GENERATED" ||
+                        enrichment.status === "REVIEWED",
+                    );
+                    const isReady = selectedReadyIds.has(company.id);
+                    const needsApproval = selectedApprovalIds.has(company.id);
+                    const needsEnrichment = selectedEnrichmentIds.has(
+                      company.id,
+                    );
+                    const needsResearch = selectedResearchIds.has(company.id);
+                    const isBlocked = selectedBlockedIds.has(company.id);
+
+                    return (
+                      <div
+                        key={company.id}
+                        className="flex flex-col gap-3 px-3 py-3 md:flex-row md:items-center md:justify-between"
+                      >
+                        <div className="min-w-0">
+                          <Link
+                            href={`/companies/${company.id}`}
+                            className="line-clamp-1 text-sm font-medium hover:underline"
+                          >
+                            {company.name}
+                          </Link>
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {isReady && (
+                              <StatusPill variant="solid">pronta</StatusPill>
+                            )}
+                            {needsApproval && (
+                              <StatusPill>aguarda aprovação</StatusPill>
+                            )}
+                            {needsEnrichment && (
+                              <StatusPill>precisa enrichment</StatusPill>
+                            )}
+                            {needsResearch && (
+                              <StatusPill>precisa research</StatusPill>
+                            )}
+                            {isBlocked && (
+                              <StatusPill variant="outline">
+                                em andamento ou sem domínio
+                              </StatusPill>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2 md:justify-end">
+                          {needsApproval && generatedEnrichment ? (
+                            <ActionButton
+                              action={approveEnrichmentAction.bind(
+                                null,
+                                generatedEnrichment.id,
+                                company.id,
+                              )}
+                              label="Aprovar"
+                              size="sm"
+                            />
+                          ) : null}
+                          {needsEnrichment && (
+                            <ActionButton
+                              action={enrichCompanyAction.bind(
+                                null,
+                                company.id,
+                              )}
+                              label="Enriquecer"
+                              size="sm"
+                              pendingLabel="gerando..."
+                              variant="outline"
+                            />
+                          )}
+                          {needsResearch && (
+                            <ActionButton
+                              action={runResearchAction.bind(null, company.id)}
+                              label="Pesquisar site"
+                              size="sm"
+                              pendingLabel="enfileirando..."
+                              variant="outline"
+                            />
+                          )}
+                          {isReady && (
+                            <span className="text-xs text-muted-foreground">
+                              Já entra marcada abaixo.
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            ))
+            </SectionCard>
           )}
-        </CardContent>
-      </Card>
+
+          <SectionCard id="generate-sequence">
+            <SectionTitle
+              title="Gerar sequência"
+              description="Escolha empresas aprovadas e gere mensagens por passo."
+            />
+            <div className="p-5">
+              {eligible.length === 0 ? (
+                <EmptyState
+                  title="Nenhuma empresa aprovada"
+                  description="Aprove um enrichment em uma empresa antes de gerar uma sequência."
+                  actionHref="/companies"
+                  actionLabel="Ver empresas"
+                />
+              ) : (
+                <ActionForm
+                  action={generateSequenceForCompanyAction.bind(
+                    null,
+                    campaign.id,
+                  )}
+                  submitLabel="Gerar sequência"
+                >
+                  <Field label="Empresas com enrichment aprovado">
+                    <div className="max-h-72 overflow-auto rounded-md border border-border">
+                      {sortedEligible.map((company) => (
+                        <label
+                          key={company.id}
+                          className="flex cursor-pointer items-start gap-3 border-b border-border px-3 py-3 last:border-b-0 hover:bg-surface-muted"
+                        >
+                          <input
+                            type="checkbox"
+                            name="companyId"
+                            value={company.id}
+                            defaultChecked={selectedReadyIds.has(company.id)}
+                            className="mt-0.5 h-4 w-4 accent-foreground"
+                          />
+                          <span className="flex min-w-0 flex-col">
+                            <span className="text-sm font-medium">
+                              {company.name}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {[company.email, company.domain]
+                                .filter(Boolean)
+                                .join(" · ") || "sem e-mail/domínio"}
+                            </span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </Field>
+                </ActionForm>
+              )}
+            </div>
+          </SectionCard>
+
+          <SectionCard id="messages">
+            <SectionTitle
+              title="Mensagens por empresa"
+              description="Rascunhos, status e eventos capturados."
+            />
+            {campaign.messages.length === 0 ? (
+              <div className="p-5">
+                <EmptyState
+                  title="Nenhuma mensagem gerada"
+                  description="Gere uma sequência para criar os rascunhos por empresa e passo."
+                />
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {campaign.messages.map((message) => (
+                  <MessagePreviewCard
+                    key={message.id}
+                    subject={message.subject}
+                    body={message.body}
+                    companyName={message.company.name}
+                    companyHref={`/companies/${message.companyId}`}
+                    campaignName={campaign.name}
+                    stepOrder={message.step?.order}
+                    status={message.status}
+                    events={message.events}
+                    action={
+                      message.status !== "SENT" ? (
+                        <ActionButton
+                          action={sendMessageAction.bind(
+                            null,
+                            message.id,
+                            message.companyId,
+                          )}
+                          label="Enviar"
+                          size="sm"
+                          pendingLabel="enviando..."
+                        />
+                      ) : null
+                    }
+                  />
+                ))}
+              </div>
+            )}
+          </SectionCard>
+        </div>
+      </div>
     </div>
+  );
+}
+
+function CampaignPrimaryAction({
+  label,
+  stepCount,
+}: {
+  label: string;
+  stepCount: number;
+}) {
+  const href = stepCount === 0 ? "#add-step" : "#generate-sequence";
+  const finalHref =
+    label === "Revisar e enviar" || label === "Acompanhar eventos"
+      ? "#messages"
+      : href;
+
+  return (
+    <Link
+      href={finalHref}
+      className="inline-flex h-9 items-center justify-center rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
+    >
+      {label}
+    </Link>
   );
 }

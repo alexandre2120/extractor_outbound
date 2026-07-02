@@ -9,10 +9,10 @@ export const metadata: Metadata = {
 };
 
 const nav = [
-  { href: "/", label: "Dashboard" },
-  { href: "/plans", label: "Plans" },
-  { href: "/companies", label: "Companies" },
-  { href: "/campaigns", label: "Campaigns" },
+  { href: "/", label: "Painel" },
+  { href: "/plans", label: "Planos" },
+  { href: "/companies", label: "Empresas" },
+  { href: "/campaigns", label: "Campanhas" },
 ];
 
 export default function RootLayout({
@@ -22,27 +22,42 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body>
-        <div className="mx-auto flex min-h-screen max-w-6xl flex-col">
-          <header className="flex items-center justify-between border-b border-border px-6 py-4">
-            <Link href="/" className="text-sm font-semibold tracking-tight">
-              outbound<span className="text-muted-foreground">.local</span>
-            </Link>
-            <nav className="flex gap-1">
-              {nav.map((item) => (
+      <body suppressHydrationWarning>
+        <div className="flex min-h-screen flex-col">
+          <header className="sticky top-0 z-40 border-b border-border bg-surface">
+            <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
+              <div className="flex min-w-0 flex-1 items-center gap-4 sm:gap-7">
                 <Link
-                  key={item.href}
-                  href={item.href}
-                  className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
+                  href="/"
+                  className="flex shrink-0 items-center gap-2 text-sm font-semibold tracking-tight"
                 >
-                  {item.label}
+                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-foreground font-mono text-xs font-bold text-background">
+                    C
+                  </span>
+                  Cadência
                 </Link>
-              ))}
-            </nav>
+                <nav className="flex min-w-0 flex-1 gap-1 overflow-x-auto">
+                  {nav.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="shrink-0 rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-surface-muted hover:text-foreground"
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </nav>
+              </div>
+              <span className="hidden text-xs text-muted-foreground sm:inline">
+                Plan-first outbound
+              </span>
+            </div>
           </header>
-          <main className="flex-1 px-6 py-8">{children}</main>
-          <footer className="border-t border-border px-6 py-4 text-xs text-muted-foreground">
-            plan-first · registry &gt; website &gt; ai · Camada 1
+          <main className="mx-auto w-full max-w-6xl flex-1 px-6 py-7">
+            {children}
+          </main>
+          <footer className="mx-auto w-full max-w-6xl border-t border-border px-6 py-4 text-xs text-muted-foreground">
+            plan-first · registry &gt; website &gt; ai
           </footer>
         </div>
       </body>

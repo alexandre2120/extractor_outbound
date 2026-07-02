@@ -1,159 +1,416 @@
-import { notFound } from "next/navigation";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle, Field, Input, Badge } from "@repo/ui";
+import { notFound } from "next/navigation";
+import { Field, Input } from "@repo/ui";
 import { prisma } from "@repo/db";
-import { ActionForm } from "@/components/action-form";
 import { ActionButton } from "@/components/action-button";
+import { ActionForm } from "@/components/action-form";
 import { AutoRefresh } from "@/components/auto-refresh";
 import {
-  setCompanyDomain,
-  runResearchAction,
-  enrichCompanyAction,
+  AsyncNotice,
+  PageHeader,
+  ScoreBar,
+  SectionCard,
+  SectionTitle,
+  StageStepper,
+  StatusPill,
+  TierBadge,
+} from "@/components/flow-ui";
+import { MessagePreviewCard } from "@/components/message-preview-card";
+import { getCompanyPrimaryAction } from "@/lib/flow";
+import {
   approveEnrichmentAction,
+  enrichCompanyAction,
   generateMessageAction,
+  runResearchAction,
   sendMessageAction,
+  setCompanyDomain,
 } from "@/lib/actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function CompanyDetail({ params }: { params: Promise<{ id: string }> }) {
+export default async function CompanyDetail({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
   const { id } = await params;
-  const c = await prisma.company.findUnique({
+  const company = await prisma.company.findUnique({
     where: { id },
     include: {
       registryData: true,
       website: true,
-      researchJobs: { orderBy: { createdAt: "desc" }, take: 3 },
+      researchJobs: {
+        orderBy: { createdAt: "desc" },
+        take: 3,
+        include: { evidence: { take: 2, orderBy: { capturedAt: "desc" } } },
+      },
       enrichments: { orderBy: { version: "desc" } },
-      messages: { orderBy: { createdAt: "desc" }, include: { events: true } },
+      messages: {
+        orderBy: { createdAt: "desc" },
+        include: { events: true, campaign: true, step: true },
+      },
+      discoveryResults: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
-  if (!c) notFound();
+  if (!company) notFound();
 
-  const approvedEnrichment = c.enrichments.find((e) => e.status === "APPROVED");
+  const latestResult = company.discoveryResults[0] ?? null;
+  const latestGenerated = company.enrichments.find(
+    (enrichment) =>
+      enrichment.status === "GENERATED" || enrichment.status === "REVIEWED",
+  );
+  const approvedEnrichment = company.enrichments.find(
+    (enrichment) => enrichment.status === "APPROVED",
+  );
   const jobActive =
-    c.researchJobs.some((j) => j.status === "PENDING" || j.status === "RUNNING") ||
-    c.enrichments.some((e) => e.status === "DRAFT");
+    company.researchJobs.some(
+      (job) => job.status === "PENDING" || job.status === "RUNNING",
+    ) ||
+    company.enrichments.some((enrichment) => enrichment.status === "DRAFT");
+  const primary = getCompanyPrimaryAction({
+    hasDomain: !!(company.domain || company.email),
+    hasResearch: !!company.website?.factualSummary,
+    hasGeneratedEnrichment: !!latestGenerated,
+    hasApprovedEnrichment: !!approvedEnrichment,
+    hasCampaignMessage: company.messages.some(
+      (message) => !!message.campaignId,
+    ),
+  });
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-1">
-        <Link href="/companies" className="text-xs text-muted-foreground hover:text-foreground">← Companies</Link>
-        <h1 className="text-xl font-semibold tracking-tight">{c.name}</h1>
-        <p className="text-sm text-muted-foreground">
-          {c.taxId} · {c.registryData?.status ?? "—"} · {c.city ?? "?"}/{c.state ?? "?"}
-        </p>
-      </div>
+    <div className="flex flex-col gap-6">
+      <StageStepper current={primary.stage} />
+
+      <Link
+        href="/companies"
+        className="text-xs text-muted-foreground hover:text-foreground"
+      >
+        ← Empresas
+      </Link>
+
+      <PageHeader
+        eyebrow="Empresa"
+        title={company.name}
+        description={
+          [company.domain, company.city, company.email]
+            .filter(Boolean)
+            .join(" · ") || "Sem domínio/e-mail cadastrado."
+        }
+        action={
+          <CompanyPrimaryAction
+            companyId={company.id}
+            label={primary.label}
+            generatedEnrichmentId={latestGenerated?.id ?? null}
+          />
+        }
+      >
+        <TierBadge tier={latestResult?.tier ?? null} size="md" />
+        <StatusPill variant="outline">
+          Score{" "}
+          {latestResult?.rankScore != null
+            ? Math.round(latestResult.rankScore)
+            : "—"}
+        </StatusPill>
+        {company.email && <StatusPill>e-mail verificado</StatusPill>}
+      </PageHeader>
 
       <AutoRefresh active={jobActive} />
+      {jobActive && (
+        <AsyncNotice
+          title="Refino em andamento..."
+          description="Research ou IA estão na fila. A página atualiza sozinha."
+        />
+      )}
 
-      {/* Registry — verdade estruturada */}
-      <Card>
-        <CardHeader><CardTitle>Registry <Badge variant="outline">verdade estruturada</Badge></CardTitle></CardHeader>
-        <CardContent className="grid grid-cols-2 gap-2 text-sm">
-          <div><span className="text-muted-foreground">CNAE:</span> {c.registryData?.cnae ?? "—"}</div>
-          <div><span className="text-muted-foreground">E-mail:</span> {c.email ?? "—"}</div>
-          <div><span className="text-muted-foreground">Telefone:</span> {c.phone ?? "—"}</div>
-          <div><span className="text-muted-foreground">Razão social:</span> {c.legalName ?? "—"}</div>
-        </CardContent>
-      </Card>
-
-      {/* Website + research */}
-      <Card>
-        <CardHeader><CardTitle>Browser research <Badge variant="outline">website</Badge></CardTitle></CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <ActionForm action={setCompanyDomain.bind(null, c.id)} submitLabel="Salvar domínio">
+      <SectionCard>
+        <div className="grid gap-5 p-5 md:grid-cols-[1fr_240px]">
+          <div>
+            <div className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Fit da última rodada
+            </div>
+            <ScoreBar
+              value={
+                latestResult?.rankScore ?? approvedEnrichment?.fitScore ?? null
+              }
+            />
+          </div>
+          <ActionForm
+            action={setCompanyDomain.bind(null, company.id)}
+            submitLabel="Salvar domínio"
+          >
             <Field label="Domínio / site">
-              <Input name="domain" defaultValue={c.domain ?? ""} placeholder="empresa.com.br" />
+              <Input
+                name="domain"
+                defaultValue={company.domain ?? ""}
+                placeholder="empresa.com.br"
+              />
             </Field>
           </ActionForm>
-          <div className="flex items-center gap-3">
-            <ActionButton action={runResearchAction.bind(null, c.id)} label="Rodar research" pendingLabel="enfileirando..." />
-            {c.researchJobs[0] && (
-              <Badge variant={c.researchJobs[0].status === "DONE" ? "solid" : "outline"}>
-                {c.researchJobs[0].status}
-                {c.researchJobs[0].qualityScore != null ? ` · score ${c.researchJobs[0].qualityScore}` : ""}
-              </Badge>
-            )}
-          </div>
-          {c.website?.factualSummary && (
-            <div className="rounded-md bg-surface-muted p-3 text-xs text-muted-foreground">
-              <div className="mb-1 font-medium text-foreground">Resumo factual (score {c.researchJobs[0]?.qualityScore ?? "?"})</div>
-              {c.website.factualSummary.slice(0, 600)}…
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        </div>
+      </SectionCard>
 
-      {/* AI enrichment */}
-      <Card>
-        <CardHeader><CardTitle>AI enrichment <Badge variant="outline">inferência</Badge></CardTitle></CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <ActionButton action={enrichCompanyAction.bind(null, c.id)} label="Gerar enrichment (KIE)" pendingLabel="gerando..." />
-          {c.enrichments.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nenhum enrichment. Rode research antes para melhor qualidade.</p>
+      <div>
+        <div className="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+          Camadas de verdade
+        </div>
+        <div className="grid gap-3 lg:grid-cols-3">
+          <TruthLayerCard
+            title="Registro"
+            icon="R"
+            status={company.registryData ? "Confirmado" : "Pendente"}
+            fit={company.registryData ? 80 : null}
+            angle={
+              company.registryData
+                ? `CNAE ${company.registryData.cnae ?? "—"} · status ${company.registryData.status ?? "—"}`
+                : "Sem dados cadastrais estruturados para esta empresa."
+            }
+          />
+          <TruthLayerCard
+            title="Website"
+            icon="W"
+            status={company.website?.factualSummary ? "Lido" : "Pendente"}
+            fit={company.researchJobs[0]?.qualityScore ?? null}
+            angle={
+              company.website?.factualSummary ??
+              "Rode “Pesquisar site” para registrar fatos públicos e evidências."
+            }
+          />
+          <TruthLayerCard
+            title="IA"
+            icon="IA"
+            status={
+              approvedEnrichment
+                ? "Aprovado"
+                : latestGenerated
+                  ? "Gerado"
+                  : "Pendente"
+            }
+            fit={
+              approvedEnrichment?.fitScore ?? latestGenerated?.fitScore ?? null
+            }
+            angle={
+              approvedEnrichment?.approachAngle ??
+              latestGenerated?.approachAngle ??
+              "Enriqueça para gerar fit, hipóteses e ângulo de abordagem."
+            }
+          />
+        </div>
+      </div>
+
+      <SectionCard>
+        <SectionTitle
+          title="Enrichments"
+          description="Inferência comercial derivada das camadas cadastral e website."
+          action={
+            <ActionButton
+              action={enrichCompanyAction.bind(null, company.id)}
+              label="Enriquecer (IA)"
+              pendingLabel="gerando..."
+            />
+          }
+        />
+        <div className="divide-y divide-border">
+          {company.enrichments.length === 0 ? (
+            <p className="px-5 py-5 text-sm text-muted-foreground">
+              Nenhum enrichment ainda.
+            </p>
           ) : (
-            <div className="flex flex-col gap-3">
-              {c.enrichments.map((e) => (
-                <div key={e.id} className="rounded-md border border-border p-3">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-sm font-medium">
-                      v{e.version}{e.fitScore != null ? ` · fit ${e.fitScore}` : ""}
-                    </span>
-                    <Badge variant={e.status === "APPROVED" ? "solid" : "default"}>
-                      {e.status === "DRAFT" ? "na fila…" : e.status}
-                    </Badge>
+            company.enrichments.map((enrichment) => (
+              <div key={enrichment.id} className="px-5 py-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold">
+                        v{enrichment.version}
+                      </span>
+                      <StatusPill
+                        variant={
+                          enrichment.status === "APPROVED" ? "solid" : "default"
+                        }
+                      >
+                        {enrichment.status}
+                      </StatusPill>
+                      {enrichment.fitScore != null && (
+                        <StatusPill variant="outline">
+                          fit {Math.round(enrichment.fitScore)}
+                        </StatusPill>
+                      )}
+                    </div>
+                    {enrichment.approachAngle && (
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        {enrichment.approachAngle}
+                      </p>
+                    )}
+                    {Array.isArray(enrichment.hypotheses) && (
+                      <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+                        {(enrichment.hypotheses as string[])
+                          .slice(0, 3)
+                          .map((hypothesis, index) => (
+                            <li key={index}>{hypothesis}</li>
+                          ))}
+                      </ul>
+                    )}
                   </div>
-                  {e.approachAngle && (
-                    <p className="mb-2 text-xs text-muted-foreground"><strong>Ângulo:</strong> {e.approachAngle}</p>
-                  )}
-                  {Array.isArray(e.hypotheses) && (
-                    <ul className="mb-2 list-disc pl-4 text-xs text-muted-foreground">
-                      {(e.hypotheses as string[]).slice(0, 3).map((h, i) => <li key={i}>{h}</li>)}
-                    </ul>
-                  )}
-                  {e.status === "GENERATED" && (
-                    <ActionButton action={approveEnrichmentAction.bind(null, e.id, c.id)} label="Aprovar" size="sm" />
+                  {enrichment.status === "GENERATED" && (
+                    <ActionButton
+                      action={approveEnrichmentAction.bind(
+                        null,
+                        enrichment.id,
+                        company.id,
+                      )}
+                      label="Aprovar"
+                      size="sm"
+                    />
                   )}
                 </div>
-              ))}
-            </div>
+              </div>
+            ))
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </SectionCard>
 
-      {/* Mensagens */}
-      <Card>
-        <CardHeader><CardTitle>Mensagens & envio</CardTitle></CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <ActionButton
-            action={generateMessageAction.bind(null, c.id)}
-            label="Gerar mensagem (KIE)"
-            pendingLabel="gerando..."
-            variant={approvedEnrichment ? "default" : "outline"}
-          />
-          {!approvedEnrichment && (
-            <p className="text-xs text-muted-foreground">Aprove um enrichment para gerar mensagem.</p>
+      <SectionCard>
+        <SectionTitle
+          title="Mensagens"
+          description="Rascunhos, envio via Brevo e eventos de entrega."
+          action={
+            <ActionButton
+              action={generateMessageAction.bind(null, company.id)}
+              label="Gerar mensagem"
+              pendingLabel="gerando..."
+              variant={approvedEnrichment ? "default" : "outline"}
+            />
+          }
+        />
+        <div className="divide-y divide-border">
+          {company.messages.length === 0 ? (
+            <p className="px-5 py-5 text-sm text-muted-foreground">
+              Nenhuma mensagem gerada.
+            </p>
+          ) : (
+            company.messages.map((message) => (
+              <MessagePreviewCard
+                key={message.id}
+                subject={message.subject}
+                body={message.body}
+                companyName={company.name}
+                campaignName={message.campaign?.name}
+                stepOrder={message.step?.order}
+                status={message.status}
+                events={message.events}
+                action={
+                  message.status !== "SENT" ? (
+                    <ActionButton
+                      action={sendMessageAction.bind(
+                        null,
+                        message.id,
+                        company.id,
+                      )}
+                      label="Enviar"
+                      size="sm"
+                      pendingLabel="enviando..."
+                    />
+                  ) : null
+                }
+              />
+            ))
           )}
-          {c.messages.map((m) => (
-            <div key={m.id} className="rounded-md border border-border p-3">
-              <div className="mb-1 flex items-center justify-between">
-                <span className="text-sm font-medium">{m.subject ?? "(sem assunto)"}</span>
-                <Badge variant={m.status === "SENT" ? "solid" : "default"}>{m.status}</Badge>
-              </div>
-              <p className="whitespace-pre-wrap text-xs text-muted-foreground">{m.body}</p>
-              <div className="mt-2 flex items-center gap-2">
-                {m.status !== "SENT" && (
-                  <ActionButton action={sendMessageAction.bind(null, m.id, c.id)} label="Enviar (Brevo)" size="sm" pendingLabel="enviando..." />
-                )}
-                {m.events.length > 0 && (
-                  <span className="text-xs text-muted-foreground">{m.events.length} evento(s)</span>
-                )}
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+        </div>
+      </SectionCard>
     </div>
+  );
+}
+
+function CompanyPrimaryAction({
+  companyId,
+  label,
+  generatedEnrichmentId,
+}: {
+  companyId: string;
+  label: string;
+  generatedEnrichmentId: string | null;
+}) {
+  if (label === "Pesquisar site") {
+    return (
+      <ActionButton
+        action={runResearchAction.bind(null, companyId)}
+        label={label}
+        pendingLabel="enfileirando..."
+        variant="default"
+      />
+    );
+  }
+
+  if (label === "Enriquecer (IA)") {
+    return (
+      <ActionButton
+        action={enrichCompanyAction.bind(null, companyId)}
+        label={label}
+        pendingLabel="gerando..."
+        variant="default"
+      />
+    );
+  }
+
+  if (label === "Aprovar" && generatedEnrichmentId) {
+    return (
+      <ActionButton
+        action={approveEnrichmentAction.bind(
+          null,
+          generatedEnrichmentId,
+          companyId,
+        )}
+        label={label}
+        variant="default"
+      />
+    );
+  }
+
+  return (
+    <Link
+      href="/campaigns"
+      className="inline-flex h-9 items-center justify-center rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
+    >
+      {label}
+    </Link>
+  );
+}
+
+function TruthLayerCard({
+  icon,
+  title,
+  status,
+  fit,
+  angle,
+}: {
+  icon: string;
+  title: string;
+  status: string;
+  fit: number | null;
+  angle: string;
+}) {
+  return (
+    <SectionCard className="p-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="flex h-7 min-w-7 items-center justify-center rounded-md bg-surface-muted px-1.5 font-mono text-xs font-semibold">
+            {icon}
+          </span>
+          <span className="text-sm font-semibold">{title}</span>
+        </div>
+        <StatusPill variant={status === "Pendente" ? "outline" : "default"}>
+          {status}
+        </StatusPill>
+      </div>
+      <div className="mb-3">
+        <ScoreBar value={fit} />
+      </div>
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+        Ângulo
+      </div>
+      <p className="line-clamp-5 text-sm leading-6 text-muted-foreground">
+        {angle}
+      </p>
+    </SectionCard>
   );
 }
