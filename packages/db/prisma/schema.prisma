@@ -106,14 +106,15 @@ model Workspace {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  businessProfiles BusinessProfile[]
-  plans            Plan[]
-  leadLists        LeadList[]
-  companies        Company[]
-  campaigns        OutboundCampaign[]
-  agentTasks       AgentTask[]
-  checkpoints      ProjectCheckpoint[]
-  discoveryRuns    DiscoveryRun[]
+  businessProfiles      BusinessProfile[]
+  plans                 Plan[]
+  leadLists             LeadList[]
+  companies             Company[]
+  campaigns             OutboundCampaign[]
+  agentTasks            AgentTask[]
+  checkpoints           ProjectCheckpoint[]
+  discoveryRuns         DiscoveryRun[]
+  emailTemplateSettings EmailTemplateSettings[]
 }
 
 model BusinessProfile {
@@ -128,10 +129,61 @@ model BusinessProfile {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  plans     Plan[]
+  workspace             Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plans                 Plan[]
+  emailTemplateSettings EmailTemplateSettings[]
 
   @@index([workspaceId])
+}
+
+enum TemplateSettingsStatus {
+  DRAFT
+  APPROVED
+}
+
+enum TemplateSettingsSource {
+  MANUAL
+  WEBSITE_AGENT
+}
+
+model EmailTemplateSettings {
+  id                String @id @default(cuid())
+  workspaceId       String
+  businessProfileId String?
+
+  status   TemplateSettingsStatus @default(DRAFT)
+  source   TemplateSettingsSource @default(MANUAL)
+  isActive Boolean                @default(false)
+
+  websiteUrl      String?
+  brandName       String?
+  logoUrl         String?
+  primaryColor    String?
+  accentColor     String?
+  backgroundColor String?
+  fontFamily      String?
+
+  senderName String?
+  senderRole String?
+  signature  String?
+  ctaLabel   String?
+  ctaUrl     String?
+
+  offerSummary     String?
+  valueProposition String?
+  tone             String?
+
+  rawExtraction Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  approvedAt    DateTime?
+
+  workspace       Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  businessProfile BusinessProfile? @relation(fields: [businessProfileId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([businessProfileId])
+  @@index([workspaceId, status, isActive])
 }
 
 // -----------------------------------------------------------------------------

@@ -90,3 +90,33 @@ export const generatedMessageOutput = z.object({
   channel: z.string().default("email"),
 });
 export type GeneratedMessageOutput = z.infer<typeof generatedMessageOutput>;
+
+const nullableTrimmedString = z
+  .string()
+  .trim()
+  .min(1)
+  .nullable()
+  .optional()
+  .transform((value) => value ?? null);
+
+export const extractedTemplateSettingsOutput = z.object({
+  brandName: nullableTrimmedString,
+  websiteUrl: z.string().trim().min(1),
+  logoUrl: nullableTrimmedString,
+  primaryColor: nullableTrimmedString,
+  accentColor: nullableTrimmedString,
+  backgroundColor: nullableTrimmedString,
+  fontFamily: nullableTrimmedString,
+  senderName: nullableTrimmedString,
+  senderRole: nullableTrimmedString,
+  signature: nullableTrimmedString,
+  ctaLabel: nullableTrimmedString,
+  ctaUrl: nullableTrimmedString,
+  offerSummary: nullableTrimmedString,
+  valueProposition: nullableTrimmedString,
+  tone: nullableTrimmedString,
+  evidenceRefs: z.array(z.string()).default([]),
+});
+export type ExtractedTemplateSettingsOutput = z.infer<
+  typeof extractedTemplateSettingsOutput
+>;
