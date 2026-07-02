@@ -36,11 +36,12 @@ import { researchQueue, enrichmentQueue, discoveryQueue } from "./queue";
 export type ActionResult = { ok: boolean; message: string };
 
 async function getPlanForTemplateSettings(planId: string) {
+  const ws = await getWorkspace();
   const plan = await prisma.plan.findUnique({
     where: { id: planId },
     include: { businessProfile: true },
   });
-  if (!plan) throw new Error("Plano não encontrado.");
+  if (!plan || plan.workspaceId !== ws.id) throw new Error("Plano não encontrado.");
   return plan;
 }
 
