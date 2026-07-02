@@ -34,6 +34,18 @@ describe("message previews", () => {
     assert.match(actionsSource, /isActive:\s*true/);
   });
 
+  it("keeps the template generation plan lookup inside the action try block", () => {
+    const actionsSource = readFileSync("lib/actions.ts", "utf8");
+    const start = actionsSource.indexOf("export async function generateTemplateSettingsFromWebsiteAction(");
+    const end = actionsSource.indexOf("export async function saveTemplateSettingsDraftAction(", start);
+    const functionSource = actionsSource.slice(start, end);
+    const tryIndex = functionSource.indexOf("try {");
+    const planIndex = functionSource.indexOf("const plan = await getPlanForTemplateSettings(planId);");
+
+    assert.ok(tryIndex >= 0);
+    assert.ok(planIndex > tryIndex, "plan lookup should be inside the try block");
+  });
+
   it("passes the current business profile offer into suggested-offer application", () => {
     const actionsSource = readFileSync("lib/actions.ts", "utf8");
 

@@ -409,13 +409,13 @@ export async function generateTemplateSettingsFromWebsiteAction(
   const { kie } = clientsFromEnv();
   if (!kie) return { ok: false, message: "KIE não configurado." };
 
-  const plan = await getPlanForTemplateSettings(planId);
   const websiteUrl = normalizeWebsiteUrl(formData.get("websiteUrl"));
   if (!websiteUrl) {
     return { ok: false, message: "Informe um website https válido." };
   }
 
   try {
+    const plan = await getPlanForTemplateSettings(planId);
     const research = await researchBrandingWebsite(websiteUrl, { maxPages: 5 });
     const { result } = await extractTemplateSettings(kie, {
       websiteUrl,
