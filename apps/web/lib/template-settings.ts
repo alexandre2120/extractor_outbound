@@ -71,8 +71,11 @@ export function normalizeTemplateSettingsDraft(
   };
 }
 
-export function shouldApplySuggestedOffer(requested: boolean): boolean {
-  return requested;
+export function shouldApplySuggestedOffer(
+  currentOffer: RawValue,
+  requested: boolean,
+): boolean {
+  return requested && clean(currentOffer) == null;
 }
 
 function clean(value: RawValue): string | null {

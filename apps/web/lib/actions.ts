@@ -468,96 +468,107 @@ export async function saveTemplateSettingsDraftAction(
   planId: string,
   formData: FormData,
 ): Promise<ActionResult> {
-  const plan = await getPlanForTemplateSettings(planId);
-  const settingsId = String(formData.get("settingsId") ?? "").trim();
-  const normalized = normalizeTemplateSettingsDraft({
-    websiteUrl: formData.get("websiteUrl"),
-    brandName: formData.get("brandName"),
-    logoUrl: formData.get("logoUrl"),
-    primaryColor: formData.get("primaryColor"),
-    accentColor: formData.get("accentColor"),
-    backgroundColor: formData.get("backgroundColor"),
-    fontFamily: formData.get("fontFamily"),
-    senderName: formData.get("senderName"),
-    senderRole: formData.get("senderRole"),
-    signature: formData.get("signature"),
-    ctaLabel: formData.get("ctaLabel"),
-    ctaUrl: formData.get("ctaUrl"),
-    offerSummary: formData.get("offerSummary"),
-    valueProposition: formData.get("valueProposition"),
-    tone: formData.get("tone"),
-  });
+  try {
+    const plan = await getPlanForTemplateSettings(planId);
+    const settingsId = String(formData.get("settingsId") ?? "").trim();
+    const normalized = normalizeTemplateSettingsDraft({
+      websiteUrl: formData.get("websiteUrl"),
+      brandName: formData.get("brandName"),
+      logoUrl: formData.get("logoUrl"),
+      primaryColor: formData.get("primaryColor"),
+      accentColor: formData.get("accentColor"),
+      backgroundColor: formData.get("backgroundColor"),
+      fontFamily: formData.get("fontFamily"),
+      senderName: formData.get("senderName"),
+      senderRole: formData.get("senderRole"),
+      signature: formData.get("signature"),
+      ctaLabel: formData.get("ctaLabel"),
+      ctaUrl: formData.get("ctaUrl"),
+      offerSummary: formData.get("offerSummary"),
+      valueProposition: formData.get("valueProposition"),
+      tone: formData.get("tone"),
+    });
 
-  const applyOffer = formData.get("applyOffer") === "on";
+    const applyOffer = formData.get("applyOffer") === "on";
 
-  await prisma.$transaction(async (tx) => {
-    if (settingsId) {
-      await tx.emailTemplateSettings.updateMany({
-        where: { id: settingsId, workspaceId: plan.workspaceId },
-        data: {
-          ...normalized,
-          status: TemplateSettingsStatus.DRAFT,
-          isActive: false,
-        },
-      });
-    } else {
-      await tx.emailTemplateSettings.create({
-        data: {
-          workspaceId: plan.workspaceId,
-          businessProfileId: plan.businessProfileId,
-          status: TemplateSettingsStatus.DRAFT,
-          source: TemplateSettingsSource.MANUAL,
-          isActive: false,
-          ...normalized,
-        },
-      });
-    }
+    await prisma.$transaction(async (tx) => {
+      if (settingsId) {
+        const updated = await tx.emailTemplateSettings.updateMany({
+          where: { id: settingsId, workspaceId: plan.workspaceId },
+          data: {
+            ...normalized,
+            status: TemplateSettingsStatus.DRAFT,
+            isActive: false,
+          },
+        });
+        if (updated.count === 0) {
+          throw new Error("Template não encontrado.");
+        }
+      } else {
+        await tx.emailTemplateSettings.create({
+          data: {
+            workspaceId: plan.workspaceId,
+            businessProfileId: plan.businessProfileId,
+            status: TemplateSettingsStatus.DRAFT,
+            source: TemplateSettingsSource.MANUAL,
+            isActive: false,
+            ...normalized,
+          },
+        });
+      }
 
-    if (
-      plan.businessProfileId &&
-      normalized.offerSummary &&
-      shouldApplySuggestedOffer(applyOffer)
-    ) {
-      await tx.businessProfile.update({
-        where: { id: plan.businessProfileId },
-        data: { offer: normalized.offerSummary },
-      });
-    }
-  });
+      if (
+        plan.businessProfileId &&
+        normalized.offerSummary &&
+        shouldApplySuggestedOffer(plan.businessProfile?.offer, applyOffer)
+      ) {
+        await tx.businessProfile.update({
+          where: { id: plan.businessProfileId },
+          data: { offer: normalized.offerSummary },
+        });
+      }
+    });
 
-  revalidatePath(`/plans/${planId}`);
-  return { ok: true, message: "Template salvo como rascunho." };
+    revalidatePath(`/plans/${planId}`);
+    return { ok: true, message: "Template salvo como rascunho." };
+  } catch (error) {
+    return { ok: false, message: (error as Error).message };
+  }
 }
 
 export async function approveTemplateSettingsAction(
   planId: string,
   settingsId: string,
 ): Promise<ActionResult> {
-  const plan = await getPlanForTemplateSettings(planId);
-  const settings = await prisma.emailTemplateSettings.findFirst({
-    where: { id: settingsId, workspaceId: plan.workspaceId },
-  });
-  if (!settings) return { ok: false, message: "Template não encontrado." };
+  try {
+    const plan = await getPlanForTemplateSettings(planId);
+    const settings = await prisma.emailTemplateSettings.findFirst({
+      where: { id: settingsId, workspaceId: plan.workspaceId },
+    });
+    if (!settings) return { ok: false, message: "Template não encontrado." };
 
-  await prisma.$transaction([
-    prisma.emailTemplateSettings.updateMany({
-      where: { workspaceId: plan.workspaceId },
-      data: { isActive: false },
-    }),
-    prisma.emailTemplateSettings.update({
-      where: { id: settingsId },
-      data: {
-        status: TemplateSettingsStatus.APPROVED,
-        isActive: true,
-        approvedAt: new Date(),
-      },
-    }),
-  ]);
+    await prisma.$transaction([
+      prisma.emailTemplateSettings.updateMany({
+        where: { workspaceId: plan.workspaceId },
+        data: { isActive: false },
+      }),
+      prisma.emailTemplateSettings.update({
+        where: { id: settingsId },
+        data: {
+          status: TemplateSettingsStatus.APPROVED,
+          isActive: true,
+          approvedAt: new Date(),
+        },
+      }),
+    ]);
 
-  revalidatePath(`/plans/${planId}`);
-  revalidatePath("/companies");
-  revalidatePath("/campaigns");
-  return { ok: true, message: "Template aprovado para próximos envios." };
+    revalidatePath(`/plans/${planId}`);
+    revalidatePath("/companies");
+    revalidatePath("/campaigns");
+    return { ok: true, message: "Template aprovado para próximos envios." };
+  } catch (error) {
+    return { ok: false, message: (error as Error).message };
+  }
 }
 
 export async function updatePlanAction(

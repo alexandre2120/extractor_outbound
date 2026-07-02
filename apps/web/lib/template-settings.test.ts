@@ -43,8 +43,15 @@ describe("template settings helpers", () => {
     assert.equal(draft.signature, "Equipa Acme");
   });
 
-  it("applies suggested offer only when explicitly requested", () => {
-    assert.equal(shouldApplySuggestedOffer(true), true);
-    assert.equal(shouldApplySuggestedOffer(false), false);
+  it("applies suggested offer only when requested and the current offer is blank", () => {
+    assert.equal(shouldApplySuggestedOffer(null, true), true);
+    assert.equal(shouldApplySuggestedOffer("", true), true);
+    assert.equal(shouldApplySuggestedOffer("   ", true), true);
+    assert.equal(shouldApplySuggestedOffer("Existing offer", true), false);
+    assert.equal(shouldApplySuggestedOffer(null, false), false);
+  });
+
+  it("treats whitespace-only offers as blank for suggested offer application", () => {
+    assert.equal(shouldApplySuggestedOffer(" \n\t ", true), true);
   });
 });
