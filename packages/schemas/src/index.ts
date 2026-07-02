@@ -92,12 +92,10 @@ export const generatedMessageOutput = z.object({
 export type GeneratedMessageOutput = z.infer<typeof generatedMessageOutput>;
 
 const nullableTrimmedString = z
-  .string()
-  .trim()
-  .min(1)
-  .nullable()
-  .optional()
-  .transform((value) => value ?? null);
+  .preprocess(
+    (value) => (typeof value === "string" && value.trim().length === 0 ? null : value),
+    z.string().trim().min(1).nullable().optional().transform((value) => value ?? null),
+  );
 
 const nullableHexColor = nullableTrimmedString.transform((value) => {
   if (!value) return null;

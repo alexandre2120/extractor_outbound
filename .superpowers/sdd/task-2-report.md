@@ -26,3 +26,19 @@ Fix report (review follow-up):
 Fix verification:
 - `corepack pnpm exec tsx --test packages/schemas/src/template-settings.test.ts packages/prompts/src/template-settings-prompt.test.ts packages/integrations/src/branding-research.test.ts` -> 8 tests passed, 0 failed.
 - `corepack pnpm --filter @repo/web exec tsc --noEmit --incremental false` -> passed.
+
+Review fix follow-up:
+- Changed the shared nullable string normalization in `packages/schemas/src/index.ts` so whitespace-only extracted values are preprocessed to `null` before strict validation.
+- Added a focused regression test in `packages/schemas/src/template-settings.test.ts` that proves blank `brandName`, URL, color, and other optional extracted text fields now parse and normalize to `null`.
+
+TDD red/green evidence:
+- Red: `corepack pnpm exec tsx --test packages/schemas/src/template-settings.test.ts` failed on blank extracted fields with Zod `too_small` errors before preprocessing.
+- Green: the same focused schema test passed after the preprocessing fix.
+
+Verification:
+- `corepack pnpm exec tsx --test packages/schemas/src/template-settings.test.ts` -> passed, 5 tests passed, 0 failed.
+- `corepack pnpm exec tsx --test packages/schemas/src/template-settings.test.ts packages/prompts/src/template-settings-prompt.test.ts packages/integrations/src/branding-research.test.ts` -> passed, 9 tests passed, 0 failed.
+- `corepack pnpm --filter @repo/web exec tsc --noEmit --incremental false` -> passed.
+
+Concerns:
+- None.

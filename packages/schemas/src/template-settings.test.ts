@@ -34,6 +34,33 @@ describe("extractedTemplateSettingsOutput", () => {
     assert.equal(parsed.ctaUrl, "https://example.com/book");
   });
 
+  it("accepts blank extracted optional fields and normalizes them to null", () => {
+    const parsed = extractedTemplateSettingsOutput.parse({
+      websiteUrl: "https://example.com",
+      brandName: "",
+      primaryColor: "",
+      accentColor: "   ",
+      backgroundColor: "",
+      logoUrl: "",
+      ctaLabel: "  ",
+      ctaUrl: "   ",
+      offerSummary: "",
+      valueProposition: "   ",
+      tone: "",
+    });
+
+    assert.equal(parsed.brandName, null);
+    assert.equal(parsed.primaryColor, null);
+    assert.equal(parsed.accentColor, null);
+    assert.equal(parsed.backgroundColor, null);
+    assert.equal(parsed.logoUrl, null);
+    assert.equal(parsed.ctaLabel, null);
+    assert.equal(parsed.ctaUrl, null);
+    assert.equal(parsed.offerSummary, null);
+    assert.equal(parsed.valueProposition, null);
+    assert.equal(parsed.tone, null);
+  });
+
   it("nulls malformed color and non-https url fields", () => {
     const parsed = extractedTemplateSettingsOutput.parse({
       websiteUrl: "https://example.com",
