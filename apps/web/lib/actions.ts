@@ -361,7 +361,25 @@ export async function sendMessageAction(
 
   const message = await prisma.generatedMessage.findUnique({
     where: { id: messageId },
-    include: { company: true, campaign: true },
+    include: {
+      company: {
+        include: {
+          workspace: {
+            include: {
+              emailTemplateSettings: {
+                where: {
+                  status: TemplateSettingsStatus.APPROVED,
+                  isActive: true,
+                },
+                orderBy: { approvedAt: "desc" },
+                take: 1,
+              },
+            },
+          },
+        },
+      },
+      campaign: true,
+    },
   });
   if (!message) return { ok: false, message: "Mensagem não encontrada." };
   const to = message.company.email;
@@ -370,7 +388,11 @@ export async function sendMessageAction(
   try {
     const subject = message.subject ?? "Olá";
     const text = renderOutboundEmailText(message.body);
-    const html = renderOutboundEmailHtml({ subject, body: message.body });
+    const html = renderOutboundEmailHtml({
+      subject,
+      body: message.body,
+      settings: message.company.workspace.emailTemplateSettings[0] ?? null,
+    });
 
     const res = await brevo.sendEmail({
       to: { email: to, name: message.company.name },

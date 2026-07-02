@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { StatusPill } from "@/components/flow-ui";
 import { renderOutboundEmailHtml } from "@/lib/email-template";
+import type { EmailTemplateSettingsView } from "@/lib/template-settings";
 
 type MessagePreviewEvent = {
   id: string;
@@ -17,6 +18,7 @@ type MessagePreviewCardProps = {
   status: string;
   events?: MessagePreviewEvent[];
   action?: React.ReactNode;
+  settings?: EmailTemplateSettingsView | null;
 };
 
 export function MessagePreviewCard({
@@ -29,8 +31,9 @@ export function MessagePreviewCard({
   status,
   events = [],
   action,
+  settings,
 }: MessagePreviewCardProps) {
-  const html = renderOutboundEmailHtml({ subject, body });
+  const html = renderOutboundEmailHtml({ subject, body, settings });
   const displaySubject = subject?.trim() || "(sem assunto)";
   const stepLabel = stepOrder == null ? "passo -" : `passo ${stepOrder}`;
 

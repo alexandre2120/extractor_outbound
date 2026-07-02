@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Field, Input } from "@repo/ui";
-import { prisma } from "@repo/db";
+import { prisma, TemplateSettingsStatus } from "@repo/db";
 import { ActionButton } from "@/components/action-button";
 import { ActionForm } from "@/components/action-form";
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -49,11 +49,24 @@ export default async function CompanyDetail({
         orderBy: { createdAt: "desc" },
         include: { events: true, campaign: true, step: true },
       },
+      workspace: {
+        include: {
+          emailTemplateSettings: {
+            where: {
+              status: TemplateSettingsStatus.APPROVED,
+              isActive: true,
+            },
+            orderBy: { approvedAt: "desc" },
+            take: 1,
+          },
+        },
+      },
       discoveryResults: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
   if (!company) notFound();
 
+  const activeTemplateSettings = company.workspace.emailTemplateSettings[0] ?? null;
   const latestResult = company.discoveryResults[0] ?? null;
   const latestGenerated = company.enrichments.find(
     (enrichment) =>
@@ -298,6 +311,7 @@ export default async function CompanyDetail({
                 stepOrder={message.step?.order}
                 status={message.status}
                 events={message.events}
+                settings={activeTemplateSettings}
                 action={
                   message.status !== "SENT" ? (
                     <ActionButton

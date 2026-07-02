@@ -22,6 +22,19 @@ describe("message previews", () => {
     assert.match(actionsSource, /text,/);
   });
 
+  it("loads active approved settings for message preview and Brevo send", () => {
+    const companySource = readFileSync("app/companies/[id]/page.tsx", "utf8");
+    const campaignSource = readFileSync("app/campaigns/[id]/page.tsx", "utf8");
+    const actionsSource = readFileSync("lib/actions.ts", "utf8");
+
+    assert.match(companySource, /emailTemplateSettings/);
+    assert.match(companySource, /isActive:\s*true/);
+    assert.match(campaignSource, /emailTemplateSettings/);
+    assert.match(campaignSource, /isActive:\s*true/);
+    assert.match(actionsSource, /emailTemplateSettings\.findFirst/);
+    assert.match(actionsSource, /settings:/);
+  });
+
   it("defines template settings generation, save, and approval actions", () => {
     const actionsSource = readFileSync("lib/actions.ts", "utf8");
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Field, Input, Textarea } from "@repo/ui";
-import { prisma } from "@repo/db";
+import { prisma, TemplateSettingsStatus } from "@repo/db";
 import { ActionButton } from "@/components/action-button";
 import { ActionForm } from "@/components/action-form";
 import {
@@ -47,7 +47,7 @@ export default async function CampaignDetail({
   const { id } = await params;
   const selectedCompanyIds = getSelectedCompanyIds((await searchParams) ?? {});
   const ws = await getWorkspace();
-  const [campaign, selectedCompanies] = await Promise.all([
+  const [campaign, selectedCompanies, workspace] = await Promise.all([
     prisma.outboundCampaign.findUnique({
       where: { id },
       include: {
@@ -70,8 +70,22 @@ export default async function CampaignDetail({
           },
         })
       : Promise.resolve([]),
+    prisma.workspace.findUnique({
+      where: { id: ws.id },
+      include: {
+        emailTemplateSettings: {
+          where: {
+            status: TemplateSettingsStatus.APPROVED,
+            isActive: true,
+          },
+          orderBy: { approvedAt: "desc" },
+          take: 1,
+        },
+      },
+    }),
   ]);
   if (!campaign) notFound();
+  const activeTemplateSettings = workspace?.emailTemplateSettings[0] ?? null;
 
   const eligible = await prisma.company.findMany({
     where: {
@@ -458,6 +472,7 @@ export default async function CampaignDetail({
                     stepOrder={message.step?.order}
                     status={message.status}
                     events={message.events}
+                    settings={activeTemplateSettings}
                     action={
                       message.status !== "SENT" ? (
                         <ActionButton
