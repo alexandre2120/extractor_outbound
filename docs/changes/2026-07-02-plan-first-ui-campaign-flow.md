@@ -38,6 +38,7 @@ Também foram adicionados testes unitários para regras de fluxo, ranking, sele�
 - Correção de warning de hidratação causado por atributo injetado por extensão no `<body>`.
 - Script de teste para `apps/web`.
 - Plano de implementação para a preparação de empresas selecionadas em `docs/superpowers/plans`.
+- Setup de branding e template de email com geração assistida pelo website, revisão humana e aprovação antes de preview/envio.
 
 ### Não incluído
 
@@ -46,6 +47,27 @@ Também foram adicionados testes unitários para regras de fluxo, ranking, sele�
 - O campo `BusinessProfile.offer` continua salvo, mas o prompt final de mensagem usa principalmente dados do `Plan`: `objective`, `valueProp` e `tone`.
 - Não foi criada uma seção completa de “Material de marketing” com cases, objeções, diferenciais e CTA.
 - Não foi criado editor visual/manual de template; o HTML é gerado por helper centralizado.
+- Não foi criado refino de campanhas a partir do conteúdo do site da própria empresa.
+- Não foi criada integração com templates salvos no painel Brevo.
+
+## Branding e Template de Email
+
+Foi adicionada a primeira fase de setup de template para outbound:
+
+- `EmailTemplateSettings` persistido por workspace/perfil de negócio.
+- Geração de rascunho a partir do website da própria empresa.
+- Extração assistida de marca, cores, logo, CTA, assinatura, tom, proposta de valor e resumo da oferta.
+- Revisão humana antes de aprovação.
+- Sugestão para preencher “O que você vende (oferta)” apenas quando o campo atual está vazio e sem sobrescrever automaticamente valores existentes.
+- Preview HTML com branding no plano, na empresa e na campanha.
+- Envio via Brevo usando o mesmo template aprovado.
+
+Fora desta fase:
+
+- Refino de campanhas com conteúdo do site da própria empresa.
+- Editor visual drag-and-drop.
+- Templates salvos no painel Brevo.
+- Tracking, unsubscribe ou compliance adicional além do envio atual.
 
 ## Arquivos Criados
 
