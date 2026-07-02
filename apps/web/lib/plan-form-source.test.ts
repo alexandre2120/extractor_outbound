@@ -28,4 +28,19 @@ describe("plan marketing material forms", () => {
     assert.match(source, /Textarea/);
     assert.match(source, /<Textarea\s+name="template"/);
   });
+
+  it("exposes branding template setup with textarea fields", () => {
+    const source = readFileSync("app/plans/[id]/page.tsx", "utf8");
+    const panelSource = readFileSync(
+      "components/template-settings-panel.tsx",
+      "utf8",
+    );
+
+    assert.match(source, /TemplateSettingsPanel/);
+    assert.match(panelSource, /Gerar pelo site/);
+    assert.match(panelSource, /Aprovar template/);
+    assert.match(panelSource, /<Textarea\s+name="signature"/);
+    assert.match(panelSource, /<Textarea\s+name="offerSummary"/);
+    assert.match(panelSource, /<Textarea\s+name="valueProposition"/);
+  });
 });

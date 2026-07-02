@@ -15,6 +15,7 @@ import {
   StatusPill,
 } from "@/components/flow-ui";
 import { PlanRankingTable } from "@/components/plan-ranking-table";
+import { TemplateSettingsPanel } from "@/components/template-settings-panel";
 import { getPlanPrimaryAction } from "@/lib/flow";
 import { getDefaultRefinementSelection } from "@/lib/ranking";
 import {
@@ -41,11 +42,19 @@ export default async function PlanDetail({
   const plan = await prisma.plan.findUnique({
     where: { id },
     include: {
+      businessProfile: true,
       markets: true,
       countries: true,
       segments: { orderBy: { label: "asc" } },
       personas: { orderBy: { role: "asc" } },
       constraints: { orderBy: { type: "asc" } },
+      workspace: {
+        include: {
+          emailTemplateSettings: {
+            orderBy: { updatedAt: "desc" },
+          },
+        },
+      },
     },
   });
   if (!plan) notFound();
@@ -90,6 +99,14 @@ export default async function PlanDetail({
       score: row.score,
     })),
   );
+  const draftTemplateSettings =
+    plan.workspace.emailTemplateSettings.find(
+      (settings) => settings.status === "DRAFT",
+    ) ?? null;
+  const approvedTemplateSettings =
+    plan.workspace.emailTemplateSettings.find(
+      (settings) => settings.status === "APPROVED" && settings.isActive,
+    ) ?? null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -255,6 +272,13 @@ export default async function PlanDetail({
           </div>
         </details>
       </SectionCard>
+
+      <TemplateSettingsPanel
+        planId={plan.id}
+        currentOffer={plan.businessProfile?.offer ?? null}
+        draft={draftTemplateSettings}
+        approved={approvedTemplateSettings}
+      />
 
       <SectionCard>
         <SectionTitle
