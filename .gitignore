@@ -35,3 +35,4 @@ prisma/*.db
 # docker volumes (local)
 .docker-data
 apps/**/.env.local
+.superpowers/
