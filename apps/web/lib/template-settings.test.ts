@@ -44,8 +44,7 @@ describe("template settings helpers", () => {
   });
 
   it("applies suggested offer only when explicitly requested", () => {
-    assert.equal(shouldApplySuggestedOffer("", true), true);
-    assert.equal(shouldApplySuggestedOffer("Existing offer", true), true);
-    assert.equal(shouldApplySuggestedOffer("", false), false);
+    assert.equal(shouldApplySuggestedOffer(true), true);
+    assert.equal(shouldApplySuggestedOffer(false), false);
   });
 });

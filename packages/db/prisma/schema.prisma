@@ -154,6 +154,7 @@ model EmailTemplateSettings {
   status   TemplateSettingsStatus @default(DRAFT)
   source   TemplateSettingsSource @default(MANUAL)
   isActive Boolean                @default(false)
+  activeKey String?
 
   websiteUrl      String?
   brandName       String?
@@ -184,6 +185,7 @@ model EmailTemplateSettings {
   @@index([workspaceId])
   @@index([businessProfileId])
   @@index([workspaceId, status, isActive])
+  @@unique([workspaceId, activeKey])
 }
 
 // -----------------------------------------------------------------------------

@@ -1,3 +1,8 @@
 packages:
   - "apps/*"
   - "packages/*"
+strictDepBuilds: false
+allowBuilds:
+  "@prisma/client": true
+  "@prisma/engines": true
+  prisma: true
