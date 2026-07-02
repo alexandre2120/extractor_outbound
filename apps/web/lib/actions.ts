@@ -3,25 +3,46 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
+  CampaignStatus,
+  DeliveryEventType,
+  EnrichmentStatus,
+  JobStatus,
+  MessageStatus,
   prisma,
   ProviderKind,
-  JobStatus,
-  EnrichmentStatus,
-  MessageStatus,
-  DeliveryEventType,
-  CampaignStatus,
+  TemplateSettingsSource,
+  TemplateSettingsStatus,
 } from "@repo/db";
-import { clientsFromEnv, generateColdMessage } from "@repo/integrations";
+import {
+  clientsFromEnv,
+  extractTemplateSettings,
+  generateColdMessage,
+  researchBrandingWebsite,
+} from "@repo/integrations";
 import { buildCampaignSelectionHref } from "./campaign-selection";
 import {
   renderOutboundEmailHtml,
   renderOutboundEmailText,
 } from "./email-template";
 import { getSelectedCompanyPrepIds } from "./selected-companies";
+import {
+  normalizeTemplateSettingsDraft,
+  normalizeWebsiteUrl,
+  shouldApplySuggestedOffer,
+} from "./template-settings";
 import { getWorkspace, getDefaultLeadList } from "./workspace";
 import { researchQueue, enrichmentQueue, discoveryQueue } from "./queue";
 
 export type ActionResult = { ok: boolean; message: string };
+
+async function getPlanForTemplateSettings(planId: string) {
+  const plan = await prisma.plan.findUnique({
+    where: { id: planId },
+    include: { businessProfile: true },
+  });
+  if (!plan) throw new Error("Plano não encontrado.");
+  return plan;
+}
 
 // --- Onboarding / Plan -------------------------------------------------------
 
@@ -380,6 +401,164 @@ export async function sendMessageAction(
 }
 
 // --- Plan editor -------------------------------------------------------------
+
+export async function generateTemplateSettingsFromWebsiteAction(
+  planId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  const { kie } = clientsFromEnv();
+  if (!kie) return { ok: false, message: "KIE não configurado." };
+
+  const plan = await getPlanForTemplateSettings(planId);
+  const websiteUrl = normalizeWebsiteUrl(formData.get("websiteUrl"));
+  if (!websiteUrl) {
+    return { ok: false, message: "Informe um website https válido." };
+  }
+
+  try {
+    const research = await researchBrandingWebsite(websiteUrl, { maxPages: 5 });
+    const { result } = await extractTemplateSettings(kie, {
+      websiteUrl,
+      evidence: research.evidence,
+      logoCandidates: research.logoCandidates,
+      colorCandidates: research.colorCandidates,
+    });
+    const normalized = normalizeTemplateSettingsDraft({
+      websiteUrl,
+      brandName: result.brandName,
+      logoUrl: result.logoUrl,
+      primaryColor: result.primaryColor,
+      accentColor: result.accentColor,
+      backgroundColor: result.backgroundColor,
+      fontFamily: result.fontFamily,
+      senderName: result.senderName,
+      senderRole: result.senderRole,
+      signature: result.signature,
+      ctaLabel: result.ctaLabel,
+      ctaUrl: result.ctaUrl,
+      offerSummary: result.offerSummary,
+      valueProposition: result.valueProposition,
+      tone: result.tone,
+    });
+
+    await prisma.emailTemplateSettings.create({
+      data: {
+        workspaceId: plan.workspaceId,
+        businessProfileId: plan.businessProfileId,
+        status: TemplateSettingsStatus.DRAFT,
+        source: TemplateSettingsSource.WEBSITE_AGENT,
+        isActive: false,
+        ...normalized,
+        rawExtraction: {
+          result,
+          pagesVisited: research.pagesVisited,
+          evidenceRefs: result.evidenceRefs,
+        },
+      },
+    });
+
+    revalidatePath(`/plans/${planId}`);
+    return { ok: true, message: "Branding gerado como rascunho." };
+  } catch (error) {
+    return { ok: false, message: (error as Error).message };
+  }
+}
+
+export async function saveTemplateSettingsDraftAction(
+  planId: string,
+  formData: FormData,
+): Promise<ActionResult> {
+  const plan = await getPlanForTemplateSettings(planId);
+  const settingsId = String(formData.get("settingsId") ?? "").trim();
+  const normalized = normalizeTemplateSettingsDraft({
+    websiteUrl: formData.get("websiteUrl"),
+    brandName: formData.get("brandName"),
+    logoUrl: formData.get("logoUrl"),
+    primaryColor: formData.get("primaryColor"),
+    accentColor: formData.get("accentColor"),
+    backgroundColor: formData.get("backgroundColor"),
+    fontFamily: formData.get("fontFamily"),
+    senderName: formData.get("senderName"),
+    senderRole: formData.get("senderRole"),
+    signature: formData.get("signature"),
+    ctaLabel: formData.get("ctaLabel"),
+    ctaUrl: formData.get("ctaUrl"),
+    offerSummary: formData.get("offerSummary"),
+    valueProposition: formData.get("valueProposition"),
+    tone: formData.get("tone"),
+  });
+
+  const applyOffer = formData.get("applyOffer") === "on";
+
+  await prisma.$transaction(async (tx) => {
+    if (settingsId) {
+      await tx.emailTemplateSettings.updateMany({
+        where: { id: settingsId, workspaceId: plan.workspaceId },
+        data: {
+          ...normalized,
+          status: TemplateSettingsStatus.DRAFT,
+          isActive: false,
+        },
+      });
+    } else {
+      await tx.emailTemplateSettings.create({
+        data: {
+          workspaceId: plan.workspaceId,
+          businessProfileId: plan.businessProfileId,
+          status: TemplateSettingsStatus.DRAFT,
+          source: TemplateSettingsSource.MANUAL,
+          isActive: false,
+          ...normalized,
+        },
+      });
+    }
+
+    if (
+      plan.businessProfileId &&
+      normalized.offerSummary &&
+      shouldApplySuggestedOffer(applyOffer)
+    ) {
+      await tx.businessProfile.update({
+        where: { id: plan.businessProfileId },
+        data: { offer: normalized.offerSummary },
+      });
+    }
+  });
+
+  revalidatePath(`/plans/${planId}`);
+  return { ok: true, message: "Template salvo como rascunho." };
+}
+
+export async function approveTemplateSettingsAction(
+  planId: string,
+  settingsId: string,
+): Promise<ActionResult> {
+  const plan = await getPlanForTemplateSettings(planId);
+  const settings = await prisma.emailTemplateSettings.findFirst({
+    where: { id: settingsId, workspaceId: plan.workspaceId },
+  });
+  if (!settings) return { ok: false, message: "Template não encontrado." };
+
+  await prisma.$transaction([
+    prisma.emailTemplateSettings.updateMany({
+      where: { workspaceId: plan.workspaceId },
+      data: { isActive: false },
+    }),
+    prisma.emailTemplateSettings.update({
+      where: { id: settingsId },
+      data: {
+        status: TemplateSettingsStatus.APPROVED,
+        isActive: true,
+        approvedAt: new Date(),
+      },
+    }),
+  ]);
+
+  revalidatePath(`/plans/${planId}`);
+  revalidatePath("/companies");
+  revalidatePath("/campaigns");
+  return { ok: true, message: "Template aprovado para próximos envios." };
+}
 
 export async function updatePlanAction(
   planId: string,

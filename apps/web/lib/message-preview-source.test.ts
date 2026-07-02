@@ -21,4 +21,16 @@ describe("message previews", () => {
     assert.match(actionsSource, /html,/);
     assert.match(actionsSource, /text,/);
   });
+
+  it("defines template settings generation, save, and approval actions", () => {
+    const actionsSource = readFileSync("lib/actions.ts", "utf8");
+
+    assert.match(actionsSource, /generateTemplateSettingsFromWebsiteAction/);
+    assert.match(actionsSource, /saveTemplateSettingsDraftAction/);
+    assert.match(actionsSource, /approveTemplateSettingsAction/);
+    assert.match(actionsSource, /researchBrandingWebsite/);
+    assert.match(actionsSource, /extractTemplateSettings/);
+    assert.match(actionsSource, /isActive:\s*false/);
+    assert.match(actionsSource, /isActive:\s*true/);
+  });
 });
