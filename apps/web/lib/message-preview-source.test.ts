@@ -3,6 +3,16 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 describe("message previews", () => {
+  function getSendMessageActionSource(actionsSource: string) {
+    const start = actionsSource.indexOf("export async function sendMessageAction(");
+    const end = actionsSource.indexOf("export async function generateTemplateSettingsFromWebsiteAction(", start);
+
+    assert.ok(start >= 0);
+    assert.ok(end > start);
+
+    return actionsSource.slice(start, end);
+  }
+
   it("uses the shared full preview in company and campaign message lists", () => {
     const companySource = readFileSync("app/companies/[id]/page.tsx", "utf8");
     const campaignSource = readFileSync("app/campaigns/[id]/page.tsx", "utf8");
@@ -26,13 +36,23 @@ describe("message previews", () => {
     const companySource = readFileSync("app/companies/[id]/page.tsx", "utf8");
     const campaignSource = readFileSync("app/campaigns/[id]/page.tsx", "utf8");
     const actionsSource = readFileSync("lib/actions.ts", "utf8");
+    const sendMessageActionSource = getSendMessageActionSource(actionsSource);
 
     assert.match(companySource, /emailTemplateSettings/);
     assert.match(companySource, /isActive:\s*true/);
     assert.match(campaignSource, /emailTemplateSettings/);
     assert.match(campaignSource, /isActive:\s*true/);
-    assert.match(actionsSource, /emailTemplateSettings\.findFirst/);
-    assert.match(actionsSource, /settings:/);
+    assert.match(sendMessageActionSource, /emailTemplateSettings/);
+    assert.match(sendMessageActionSource, /TemplateSettingsStatus\.APPROVED/);
+    assert.match(sendMessageActionSource, /isActive:\s*true/);
+    assert.match(
+      sendMessageActionSource,
+      /message\.company\.workspace\.emailTemplateSettings\[0\]/,
+    );
+    assert.match(
+      sendMessageActionSource,
+      /renderOutboundEmailHtml\([\s\S]*?settings:\s*message\.company\.workspace\.emailTemplateSettings\[0\]\s*\?\?\s*null/s,
+    );
   });
 
   it("defines template settings generation, save, and approval actions", () => {
