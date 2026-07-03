@@ -3,9 +3,27 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 describe("message previews", () => {
+  function getFunctionSource(source: string, name: string, nextName: string) {
+    const start = source.indexOf(`export async function ${name}(`);
+    const end = source.indexOf(`export async function ${nextName}(`, start);
+
+    assert.ok(start >= 0, `${name} should exist`);
+    assert.ok(end > start, `${nextName} should follow ${name}`);
+
+    return source.slice(start, end);
+  }
+
   function getSendMessageActionSource(actionsSource: string) {
-    const start = actionsSource.indexOf("export async function sendMessageAction(");
-    const end = actionsSource.indexOf("export async function generateTemplateSettingsFromWebsiteAction(", start);
+    return getFunctionSource(
+      actionsSource,
+      "sendMessageAction",
+      "generateTemplateSettingsFromWebsiteAction",
+    );
+  }
+
+  function getPlanForTemplateSettingsSource(actionsSource: string) {
+    const start = actionsSource.indexOf("async function getPlanForTemplateSettings(");
+    const end = actionsSource.indexOf("// --- Onboarding / Plan", start);
 
     assert.ok(start >= 0);
     assert.ok(end > start);
@@ -109,5 +127,22 @@ describe("message previews", () => {
     const actionsSource = readFileSync("lib/actions.ts", "utf8");
 
     assert.match(actionsSource, /message:\s*"Plano não encontrado\."/);
+  });
+
+  it("scopes template settings actions and preview pages to the current workspace", () => {
+    const actionsSource = readFileSync("lib/actions.ts", "utf8");
+    const planSource = readFileSync("app/plans/[id]/page.tsx", "utf8");
+    const companySource = readFileSync("app/companies/[id]/page.tsx", "utf8");
+    const campaignSource = readFileSync("app/campaigns/[id]/page.tsx", "utf8");
+    const templatePlanLookup = getPlanForTemplateSettingsSource(actionsSource);
+
+    assert.match(templatePlanLookup, /const ws = await getWorkspace\(\)/);
+    assert.match(templatePlanLookup, /findFirst\(/);
+    assert.match(templatePlanLookup, /workspaceId:\s*ws\.id/);
+    assert.match(planSource, /const ws = await getWorkspace\(\)/);
+    assert.match(planSource, /workspaceId:\s*ws\.id/);
+    assert.match(companySource, /const ws = await getWorkspace\(\)/);
+    assert.match(companySource, /workspaceId:\s*ws\.id/);
+    assert.match(campaignSource, /workspaceId:\s*ws\.id/);
   });
 });

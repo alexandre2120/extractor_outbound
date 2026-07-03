@@ -48,8 +48,8 @@ export default async function CampaignDetail({
   const selectedCompanyIds = getSelectedCompanyIds((await searchParams) ?? {});
   const ws = await getWorkspace();
   const [campaign, selectedCompanies, workspace] = await Promise.all([
-    prisma.outboundCampaign.findUnique({
-      where: { id },
+    prisma.outboundCampaign.findFirst({
+      where: { id, workspaceId: ws.id },
       include: {
         plan: true,
         steps: { orderBy: { order: "asc" } },

@@ -18,6 +18,7 @@ import { PlanRankingTable } from "@/components/plan-ranking-table";
 import { TemplateSettingsPanel } from "@/components/template-settings-panel";
 import { getPlanPrimaryAction } from "@/lib/flow";
 import { getDefaultRefinementSelection } from "@/lib/ranking";
+import { getWorkspace } from "@/lib/workspace";
 import {
   addConstraintAction,
   addPersonaAction,
@@ -39,8 +40,9 @@ export default async function PlanDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const plan = await prisma.plan.findUnique({
-    where: { id },
+  const ws = await getWorkspace();
+  const plan = await prisma.plan.findFirst({
+    where: { id, workspaceId: ws.id },
     include: {
       businessProfile: true,
       markets: true,

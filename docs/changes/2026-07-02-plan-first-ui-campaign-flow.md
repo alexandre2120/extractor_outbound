@@ -62,6 +62,16 @@ Foi adicionada a primeira fase de setup de template para outbound:
 - Preview HTML com branding no plano, na empresa e na campanha.
 - Envio via Brevo usando o mesmo template aprovado.
 
+Nota de migration:
+
+- Bancos novos aplicam `20260702193000_baseline` e depois `20260702194000_email_template_settings`.
+- Bancos existentes criados antes das migrations devem marcar a baseline como já aplicada:
+
+```bash
+corepack pnpm --filter @repo/db exec prisma migrate resolve --applied 20260702193000_baseline
+corepack pnpm --filter @repo/db exec prisma migrate deploy
+```
+
 Fora desta fase:
 
 - Refino de campanhas com conteúdo do site da própria empresa.

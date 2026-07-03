@@ -37,11 +37,11 @@ export type ActionResult = { ok: boolean; message: string };
 
 async function getPlanForTemplateSettings(planId: string) {
   const ws = await getWorkspace();
-  const plan = await prisma.plan.findUnique({
-    where: { id: planId },
+  const plan = await prisma.plan.findFirst({
+    where: { id: planId, workspaceId: ws.id },
     include: { businessProfile: true },
   });
-  if (!plan || plan.workspaceId !== ws.id) throw new Error("Plano não encontrado.");
+  if (!plan) throw new Error("Plano não encontrado.");
   return plan;
 }
 

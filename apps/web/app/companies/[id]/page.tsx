@@ -17,6 +17,7 @@ import {
 } from "@/components/flow-ui";
 import { MessagePreviewCard } from "@/components/message-preview-card";
 import { getCompanyPrimaryAction } from "@/lib/flow";
+import { getWorkspace } from "@/lib/workspace";
 import {
   approveEnrichmentAction,
   enrichCompanyAction,
@@ -34,8 +35,9 @@ export default async function CompanyDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const company = await prisma.company.findUnique({
-    where: { id },
+  const ws = await getWorkspace();
+  const company = await prisma.company.findFirst({
+    where: { id, workspaceId: ws.id },
     include: {
       registryData: true,
       website: true,
